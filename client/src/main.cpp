@@ -231,6 +231,41 @@ std::vector<char> ReadImageFile(const std::string &filename) {
   return buffer;
 }
 
+vaccel::GenopResponse Genop(const std::shared_ptr<grpc::Channel>& channel, grpc::ClientContext& context, 
+                             int session_id, const std::vector<vaccel::GenopArg>& read_args, 
+                             const std::vector<vaccel::GenopArg>& write_args) {
+
+    std::unique_ptr<vaccel::VaccelAgent::Stub> stub = vaccel::VaccelAgent::NewStub(channel);
+
+    vaccel::GenopRequest request;
+    request.set_session_id(session_id);
+
+
+    for (const auto& read_arg : read_args) {
+        auto* arg = request.add_read_args();
+        arg->CopyFrom(read_arg);
+    }
+
+    for (const auto& write_arg : write_args) {
+        auto* arg = request.add_write_args();
+        arg->CopyFrom(write_arg);
+    }
+
+    vaccel::GenopResponse response;
+
+    grpc::Status status = stub->Genop(&context, read_args, write_args);
+
+    if (status.ok()) {
+        std::cout << "Genop request successful" << std::endl;
+    } else {
+        std::cerr << "Error: Genop request failed: " << status.error_message() << std::endl;
+    }
+
+    return response;
+}
+
+
+
 int main(int argc, char *argv[]) {
   auto channel = grpc::CreateChannel("localhost:50051",
                                      grpc::InsecureChannelCredentials());
@@ -291,6 +326,30 @@ int main(int argc, char *argv[]) {
     for (const auto &tag : resp) {
       std::cout << tag << std::endl;
     }
+  }
+
+
+  {
+    grpc::ClientContext context;
+    std::vector<vaccel::GenopArg> read_args;
+    std::vector<vaccel::GenopArg> write_args;
+
+    int input = 10;
+    vaccel::GenopArg read_arg_input;
+    read_arg_input.set_size(sizeof(input));
+    read_arg_input.set_buf(reinterpret_cast<const char*>(&input));
+
+    read_args.push_back(read_arg_input);
+
+    int output = 1;
+    vaccel::GenopArg write_arg_output;
+    write_arg_output.set_size(sizeof(output));
+    write_arg_output.set_buf(reinterpret_cast<const char*>(&output));
+
+    write_args.push_back(write_arg_output);
+
+    vaccel::GenopResponse genop_result = Genop(channel, context, std::stoi(session_id), read_args, write_args);
+
   }
 
   {

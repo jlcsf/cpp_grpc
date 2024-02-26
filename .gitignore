@@ -2,3 +2,17 @@
 /build
 *.swo
 *.swp
+/proto/myproto/*.pb.cc
+/proto/myproto/*.pb.h
+/client/client
+/client/Makefile
+/client/*.cmake
+*.cmake
+CMakeCache.txt
+Makefile
+proto/libmyproto.a
+server/server
+/proto/CMakeFiles
+/server/CMakeFiles
+/client/CMakeFiles
+/CMakeFiles/
