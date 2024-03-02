@@ -1,3 +1,4 @@
+set(PROTOC_EXECUTABLE "/usr/bin/protoc-25.1.0")
 find_package(protobuf CONFIG REQUIRED)
 find_package(gRPC CONFIG REQUIRED)
 find_package(Threads)
