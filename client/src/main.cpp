@@ -240,7 +240,6 @@ vaccel::GenopResponse Genop(const std::shared_ptr<grpc::Channel>& channel, grpc:
     vaccel::GenopRequest request;
     request.set_session_id(session_id);
 
-
     for (const auto& read_arg : read_args) {
         auto* arg = request.add_read_args();
         arg->CopyFrom(read_arg);
@@ -253,7 +252,7 @@ vaccel::GenopResponse Genop(const std::shared_ptr<grpc::Channel>& channel, grpc:
 
     vaccel::GenopResponse response;
 
-    grpc::Status status = stub->Genop(&context, read_args, write_args);
+    grpc::Status status = stub->Genop(&context, request, &response);
 
     if (status.ok()) {
         std::cout << "Genop request successful" << std::endl;
@@ -334,21 +333,50 @@ int main(int argc, char *argv[]) {
     std::vector<vaccel::GenopArg> read_args;
     std::vector<vaccel::GenopArg> write_args;
 
-    int input = 10;
-    vaccel::GenopArg read_arg_input;
-    read_arg_input.set_size(sizeof(input));
-    read_arg_input.set_buf(reinterpret_cast<const char*>(&input));
+    vaccel::GenopArg read_arg_op;
+    read_arg_op.set_argtype(1);  
+    read_arg_op.set_size(sizeof(int)); 
+    int op_value = 2; // image classify
+    std::vector<char> bytes(sizeof(op_value));
+    std::memcpy(bytes.data(), &op_value, sizeof(op_value));
 
-    read_args.push_back(read_arg_input);
+    read_arg_op.set_buf(bytes.data(), bytes.size());
+    read_args.push_back(read_arg_op);
 
-    int output = 1;
-    vaccel::GenopArg write_arg_output;
-    write_arg_output.set_size(sizeof(output));
-    write_arg_output.set_buf(reinterpret_cast<const char*>(&output));
 
-    write_args.push_back(write_arg_output);
+    // Add an image
+    vaccel::GenopArg read_arg_image;
+    std::string image_path = "/home/jl/exmpl-cmake-grpc/client/src/example.jpg";
+    std::vector<char> img_bytes = ReadImageFile(image_path);
 
+    if (img_bytes.empty()) {
+      return 1;
+    }
+
+    std::string img_str(img_bytes.begin(), img_bytes.end());
+    read_arg_image.set_argtype(1); 
+    read_arg_image.set_size(img_str.size());
+    read_arg_image.set_buf(img_str);
+    read_args.push_back(read_arg_image);
+
+    std::string byte_data(100, ' '); 
+    for (int i = 0; i < 2; ++i) {
+        vaccel::GenopArg write_arg;
+        write_arg.set_argtype(2);  
+        write_arg.set_size(byte_data.size());
+        write_arg.set_buf(byte_data);
+        write_args.push_back(write_arg);
+    }
     vaccel::GenopResponse genop_result = Genop(channel, context, std::stoi(session_id), read_args, write_args);
+
+    std::cout << "--------------- RETURN FOR GENOP OPERATION: ---------------" << std::endl;
+
+    for (const auto& arg : genop_result.genop_result().write_args()) {
+        std::string output(reinterpret_cast<const char*>(arg.buf().data()), arg.buf().size());
+        std::cout << "Output: " << output << std::endl;
+    }
+
+    std::cout << "--------------- FOR GENOP OPERATION: ---------------" << std::endl;
 
   }
 
