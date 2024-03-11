@@ -231,39 +231,134 @@ std::vector<char> ReadImageFile(const std::string &filename) {
   return buffer;
 }
 
-vaccel::GenopResponse Genop(const std::shared_ptr<grpc::Channel>& channel, grpc::ClientContext& context, 
-                             int session_id, const std::vector<vaccel::GenopArg>& read_args, 
-                             const std::vector<vaccel::GenopArg>& write_args) {
+vaccel::GenopResponse Genop(const std::shared_ptr<grpc::Channel> &channel,
+                            grpc::ClientContext &context, int session_id,
+                            const std::vector<vaccel::GenopArg> &read_args,
+                            const std::vector<vaccel::GenopArg> &write_args) {
 
-    std::unique_ptr<vaccel::VaccelAgent::Stub> stub = vaccel::VaccelAgent::NewStub(channel);
+  std::unique_ptr<vaccel::VaccelAgent::Stub> stub =
+      vaccel::VaccelAgent::NewStub(channel);
 
-    vaccel::GenopRequest request;
-    request.set_session_id(session_id);
+  vaccel::GenopRequest request;
+  request.set_session_id(session_id);
 
-    for (const auto& read_arg : read_args) {
-        auto* arg = request.add_read_args();
-        arg->CopyFrom(read_arg);
-    }
+  for (const auto &read_arg : read_args) {
+    auto *arg = request.add_read_args();
+    arg->CopyFrom(read_arg);
+  }
 
-    for (const auto& write_arg : write_args) {
-        auto* arg = request.add_write_args();
-        arg->CopyFrom(write_arg);
-    }
+  for (const auto &write_arg : write_args) {
+    auto *arg = request.add_write_args();
+    arg->CopyFrom(write_arg);
+  }
 
-    vaccel::GenopResponse response;
+  vaccel::GenopResponse response;
 
-    grpc::Status status = stub->Genop(&context, request, &response);
+  grpc::Status status = stub->Genop(&context, request, &response);
 
-    if (status.ok()) {
-        std::cout << "Genop request successful" << std::endl;
-    } else {
-        std::cerr << "Error: Genop request failed: " << status.error_message() << std::endl;
-    }
+  if (status.ok()) {
+    std::cout << "Genop request successful" << std::endl;
+  } else {
+    std::cerr << "Error: Genop request failed: " << status.error_message()
+              << std::endl;
+  }
 
-    return response;
+  return response;
 }
 
+vaccel::TensorflowModelLoadResponse
+TensorflowModelLoad(const std::shared_ptr<grpc::Channel> &channel,
+                    grpc::ClientContext &context, int session_id,
+                    int model_id) {
+  std::unique_ptr<vaccel::VaccelAgent::Stub> stub =
+      vaccel::VaccelAgent::NewStub(channel);
 
+  vaccel::TensorflowModelLoadRequest request;
+  request.set_session_id(session_id);
+  request.set_model_id(model_id);
+
+  vaccel::TensorflowModelLoadResponse response;
+
+  grpc::Status status = stub->TensorflowModelLoad(&context, request, &response);
+
+  if (status.ok()) {
+    return response;
+  } else {
+    std::cerr << "Error: Failed to load TensorFlow model" << std::endl;
+    return response;
+  }
+}
+
+vaccel::TensorflowModelUnloadResponse
+TensorflowModelUnload(const std::shared_ptr<grpc::Channel> &channel,
+                      grpc::ClientContext &context, int session_id,
+                      int model_id) {
+  std::unique_ptr<vaccel::VaccelAgent::Stub> stub =
+      vaccel::VaccelAgent::NewStub(channel);
+
+  vaccel::TensorflowModelUnloadRequest request;
+  request.set_session_id(session_id);
+  request.set_model_id(model_id);
+
+  vaccel::TensorflowModelUnloadResponse response;
+
+  grpc::Status status =
+      stub->TensorflowModelUnload(&context, request, &response);
+
+  if (status.ok()) {
+    return response;
+  } else {
+    std::cerr << "Error: Failed to unload TensorFlow model" << std::endl;
+    return response;
+  }
+}
+
+vaccel::TensorflowModelRunResponse
+TensorflowModelRun(const std::shared_ptr<grpc::Channel> &channel,
+                   grpc::ClientContext &context, int session_id, int model_id,
+                   const std::string &run_options,
+                   const std::vector<std::pair<std::string, int>> &in_nodes,
+                   const std::vector<std::pair<std::string, int>> &out_nodes,
+                   const std::vector<uint8_t> &in_tensors_data) {
+  std::unique_ptr<vaccel::VaccelAgent::Stub> stub =
+      vaccel::VaccelAgent::NewStub(channel);
+
+  vaccel::TensorflowModelRunRequest request;
+  request.set_session_id(session_id);
+  request.set_model_id(model_id);
+  request.set_run_options(run_options);
+
+  for (const auto &node_name : in_nodes) {
+    vaccel::TFNode *in_node = request.add_in_nodes();
+    in_node->set_name(node_name.first);
+    in_node->set_id(node_name.second);
+  }
+
+  for (const auto &node_name : out_nodes) {
+    vaccel::TFNode *out_node = request.add_out_nodes();
+    out_node->set_name(node_name.first);
+    out_node->set_id(node_name.second);
+  }
+
+  vaccel::TFTensor tf_tensor;
+  std::string data(30, 1);
+  tf_tensor.set_data(data);
+  tf_tensor.add_dims(1);
+  tf_tensor.add_dims(30);
+  tf_tensor.set_type(vaccel::TFDataType::FLOAT);
+  *request.add_in_tensors() = tf_tensor;
+
+  vaccel::TensorflowModelRunResponse response;
+
+  grpc::Status status = stub->TensorflowModelRun(&context, request, &response);
+
+  if (status.ok()) {
+    return response;
+  } else {
+    std::cerr << "Error: Failed to run TensorFlow model" << std::endl;
+    return response;
+  }
+}
 
 int main(int argc, char *argv[]) {
   auto channel = grpc::CreateChannel("localhost:50051",
@@ -327,22 +422,20 @@ int main(int argc, char *argv[]) {
     }
   }
 
-
   {
     grpc::ClientContext context;
     std::vector<vaccel::GenopArg> read_args;
     std::vector<vaccel::GenopArg> write_args;
 
     vaccel::GenopArg read_arg_op;
-    read_arg_op.set_argtype(1);  
-    read_arg_op.set_size(sizeof(int)); 
+    read_arg_op.set_argtype(1);
+    read_arg_op.set_size(sizeof(int));
     int op_value = 2; // image classify
     std::vector<char> bytes(sizeof(op_value));
     std::memcpy(bytes.data(), &op_value, sizeof(op_value));
 
     read_arg_op.set_buf(bytes.data(), bytes.size());
     read_args.push_back(read_arg_op);
-
 
     // Add an image
     vaccel::GenopArg read_arg_image;
@@ -354,30 +447,65 @@ int main(int argc, char *argv[]) {
     }
 
     std::string img_str(img_bytes.begin(), img_bytes.end());
-    read_arg_image.set_argtype(1); 
+    read_arg_image.set_argtype(1);
     read_arg_image.set_size(img_str.size());
     read_arg_image.set_buf(img_str);
     read_args.push_back(read_arg_image);
 
-    std::string byte_data(100, ' '); 
+    std::string byte_data(100, ' ');
     for (int i = 0; i < 2; ++i) {
-        vaccel::GenopArg write_arg;
-        write_arg.set_argtype(2);  
-        write_arg.set_size(byte_data.size());
-        write_arg.set_buf(byte_data);
-        write_args.push_back(write_arg);
+      vaccel::GenopArg write_arg;
+      write_arg.set_argtype(2);
+      write_arg.set_size(byte_data.size());
+      write_arg.set_buf(byte_data);
+      write_args.push_back(write_arg);
     }
-    vaccel::GenopResponse genop_result = Genop(channel, context, std::stoi(session_id), read_args, write_args);
+    vaccel::GenopResponse genop_result =
+        Genop(channel, context, std::stoi(session_id), read_args, write_args);
 
-    std::cout << "--------------- RETURN FOR GENOP OPERATION: ---------------" << std::endl;
+    std::cout << "--------------- RETURN FOR GENOP OPERATION: ---------------"
+              << std::endl;
 
-    for (const auto& arg : genop_result.genop_result().write_args()) {
-        std::string output(reinterpret_cast<const char*>(arg.buf().data()), arg.buf().size());
-        std::cout << "Output: " << output << std::endl;
+    for (const auto &arg : genop_result.genop_result().write_args()) {
+      std::string output(reinterpret_cast<const char *>(arg.buf().data()),
+                         arg.buf().size());
+      std::cout << "Output: " << output << std::endl;
     }
 
-    std::cout << "--------------- FOR GENOP OPERATION: ---------------" << std::endl;
+    std::cout << "--------------- FOR GENOP OPERATION: ---------------"
+              << std::endl;
+  }
 
+  {
+
+    grpc::ClientContext context;
+    int model_id = 1;
+    TensorflowModelLoad(channel, context, std::stoi(session_id), model_id);
+    std::cout << "Tensorflow model has been loaded" << std::endl;
+  }
+
+  {
+    grpc::ClientContext context;
+    int model_id = 1;
+    std::string run_options = "your_run_options_here";
+    std::vector<std::pair<std::string, int>> in_nodes = {
+        {"serving_default_input_1", 0}};
+    std::vector<std::pair<std::string, int>> out_nodes = {
+        {"StatefulPartitionedCall", 0}};
+    std::vector<uint8_t> in_tensors_data = {1};
+    vaccel::TensorflowModelRunResponse response =
+        TensorflowModelRun(channel, context, std::stoi(session_id), model_id,
+                           run_options, in_nodes, out_nodes, in_tensors_data);
+
+    std::cout << "Tensorflow model has been ran" << std::endl;
+  }
+
+  {
+
+    grpc::ClientContext context;
+    int model_id = 1;
+    TensorflowModelUnload(channel, context, std::stoi(session_id), model_id);
+    std::cout << "Tensorflow model has been unloaded" << std::endl;
   }
 
   {
