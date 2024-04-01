@@ -363,6 +363,14 @@ TensorflowModelRun(const std::shared_ptr<grpc::Channel> &channel,
 int main(int argc, char *argv[]) {
   auto channel = grpc::CreateChannel("localhost:50051",
                                      grpc::InsecureChannelCredentials());
+
+
+
+  if (!channel) {
+    std::cerr << "Failed to connect to the server" << std::endl;
+    return 1;
+  }                                 
+  
   std::string session_id;
   std::string resource_id;
 
