@@ -6,8 +6,10 @@ find_package(Threads)
 #
 # Sources
 #
+
 set(SOURCES
     src/main.cpp
+    src/service_functions.cpp
 )
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SOURCES})
