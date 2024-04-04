@@ -52,14 +52,17 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    std::string session_id;
-    std::string resource_id;
+    int session_id = 99999;
+    int resource_id = 99999;
 
     {
         grpc::ClientContext context;
-        session_id = CreateSession(channel, context, 5); // Create session with flag 5
+        vaccel::CreateSessionResponse response;
+        response = CreateSession(channel, context, 5); // Create session with flag 5
 
-        if (!session_id.empty()) {
+        session_id = response.session_id();
+
+        if (session_id != 99999) {
             std::cout << "Session ID: " << session_id << " has been created" << std::endl;
         } else {
             std::cerr << "Error: Failed to create session." << std::endl;
@@ -69,7 +72,7 @@ int main(int argc, char *argv[]) {
 
     {
         grpc::ClientContext context;
-        vaccel::VaccelEmpty result = UpdateSession(channel, context, std::stoi(session_id), 1);
+        vaccel::VaccelEmpty response = UpdateSession(channel, context, session_id, 1);
 
         std::cout << "Session has been updated with the new flag" << std::endl;
     }
@@ -77,23 +80,27 @@ int main(int argc, char *argv[]) {
     {
         grpc::ClientContext context;
         vaccel::CreateResourceRequest request;
+        vaccel::CreateResourceResponse response;
         request.mutable_tf();
-        resource_id = CreateResource(channel, context, request);
-        if (resource_id.empty()) {
+        response = CreateResource(channel, context, request);
+        resource_id = response.resource_id();
+        if (resource_id == 99999) {
             std::cerr << "Error: Failed to create resource." << std::endl;
             return 1;
         }
-        std::cout << "Resource created" << std::endl;
+        std::cout << "Resource created with resource ID: " << resource_id << std::endl;
     }
 
     {
         grpc::ClientContext context;
-        RegisterResource(channel, context, std::stoi(resource_id), std::stoi(session_id));
+        vaccel::VaccelEmpty response;
+        response = RegisterResource(channel, context, resource_id, session_id);
         std::cout << "Resource has been registered" << std::endl;
     }
 
     {
         grpc::ClientContext context;
+        vaccel::ImageClassificationResponse response;
         std::string image_path = "/home/jl/exmpl-cmake-grpc/client/src/example.jpg";
         std::vector<char> img_bytes = ReadImageFile(image_path);
 
@@ -104,12 +111,19 @@ int main(int argc, char *argv[]) {
 
         std::string img_str(img_bytes.begin(), img_bytes.end());
 
-        std::vector<std::string> resp =
-            ImageClassification(channel, context, std::stoi(session_id), img_str);
+        response = ImageClassification(channel, context, session_id, img_str);
 
-        for (const auto &tag : resp) {
+        std::vector<std::string> output;
+        output.push_back(response.tags());
+
+        std::cout << "-------------------------------------- " << std::endl;
+        std::cout << "Output for image classification: " << std::endl;
+
+        for (const auto &tag : output) {
             std::cout << tag << std::endl;
         }
+
+        std::cout << "-------------------------------------- " << std::endl;
     }
 
     {
@@ -152,7 +166,7 @@ int main(int argc, char *argv[]) {
           write_args.push_back(write_arg);
         }
         vaccel::GenopResponse genop_result =
-            Genop(channel, context, std::stoi(session_id), read_args, write_args);
+            Genop(channel, context, session_id, read_args, write_args);
 
         std::cout << "--------------- RETURN FOR GENOP OPERATION: ---------------"
                   << std::endl;
@@ -169,19 +183,19 @@ int main(int argc, char *argv[]) {
 
     {
         grpc::ClientContext context;
-        vaccel::VaccelEmpty result = UnregisterResource(channel, context, std::stoi(resource_id), std::stoi(session_id));
+        vaccel::VaccelEmpty response = UnregisterResource(channel, context, resource_id, session_id);
         std::cout << "Resource has been unregistered" << std::endl;
     }
 
     {
         grpc::ClientContext context;
-        vaccel::VaccelEmpty result = DestroyResource(channel, context, std::stoi(resource_id));
+        vaccel::VaccelEmpty result = DestroyResource(channel, context, resource_id);
         std::cout << "Resource has been destroyed" << std::endl;
     }
 
     {
         grpc::ClientContext context;
-        vaccel::VaccelEmpty result = DestroySession(channel, context, std::stoi(session_id));
+        vaccel::VaccelEmpty result = DestroySession(channel, context, session_id);
         std::cout << "Session has been destroyed" << std::endl;
     }
 

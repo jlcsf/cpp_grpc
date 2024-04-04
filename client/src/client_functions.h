@@ -11,10 +11,12 @@
 #include <ostream>
 #include <string>
 
-std::string CreateSession(const std::shared_ptr<grpc::Channel> &channel,
+vaccel::CreateSessionResponse 
+CreateSession(const std::shared_ptr<grpc::Channel> &channel,
                           grpc::ClientContext &context, int flags);
 
-vaccel::VaccelEmpty UpdateSession(const std::shared_ptr<grpc::Channel> &channel,
+vaccel::VaccelEmpty 
+UpdateSession(const std::shared_ptr<grpc::Channel> &channel,
                                   grpc::ClientContext &context, int session_id,
                                   int flags);
 
@@ -22,7 +24,8 @@ vaccel::VaccelEmpty
 DestroySession(const std::shared_ptr<grpc::Channel> &channel,
                grpc::ClientContext &context, int session_id);
 
-std::string CreateResource(const std::shared_ptr<grpc::Channel> &channel,
+vaccel::CreateResourceResponse 
+CreateResource(const std::shared_ptr<grpc::Channel> &channel,
                            grpc::ClientContext &context,
                            const vaccel::CreateResourceRequest &model);
 
@@ -39,13 +42,14 @@ UnregisterResource(const std::shared_ptr<grpc::Channel> &channel,
                    grpc::ClientContext &context, int resource_id,
                    int session_id);
 
-std::vector<std::string>
+vaccel::ImageClassificationResponse
 ImageClassification(const std::shared_ptr<grpc::Channel> &channel,
                     grpc::ClientContext &context, int session_id,
                     const std::string &image);
 
 
-vaccel::GenopResponse Genop(const std::shared_ptr<grpc::Channel> &channel,
+vaccel::GenopResponse
+Genop(const std::shared_ptr<grpc::Channel> &channel,
                             grpc::ClientContext &context, int session_id,
                             const std::vector<vaccel::GenopArg> &read_args,
                             const std::vector<vaccel::GenopArg> &write_args);

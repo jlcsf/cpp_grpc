@@ -1,7 +1,7 @@
 #include <grpcpp/create_channel.h>
 #include <myproto/agent.grpc.pb.h>
 
-std::string CreateSession(const std::shared_ptr<grpc::Channel> &channel,
+vaccel::CreateSessionResponse CreateSession(const std::shared_ptr<grpc::Channel> &channel,
                           grpc::ClientContext &context, int flags) {
 
     std::unique_ptr<vaccel::VaccelAgent::Stub> stub =
@@ -9,14 +9,15 @@ std::string CreateSession(const std::shared_ptr<grpc::Channel> &channel,
 
     vaccel::CreateSessionRequest query;
     query.set_flags(flags);
-    vaccel::CreateSessionResponse result;
+    vaccel::CreateSessionResponse response;
 
-    grpc::Status status = stub->CreateSession(&context, query, &result);
+    grpc::Status status = stub->CreateSession(&context, query, &response);
 
     if (status.ok()) {
-        return std::to_string(result.session_id());
+        return response;
     } else {
-        return "";
+        std::cerr << "Error: Failed to create a session" << std::endl;
+        return response;
     }
 }
 
@@ -63,7 +64,8 @@ DestroySession(const std::shared_ptr<grpc::Channel> &channel,
     }
 }
 
-std::string CreateResource(const std::shared_ptr<grpc::Channel> &channel,
+vaccel::CreateResourceResponse 
+CreateResource(const std::shared_ptr<grpc::Channel> &channel,
                            grpc::ClientContext &context,
                            const vaccel::CreateResourceRequest &model) {
     std::unique_ptr<vaccel::VaccelAgent::Stub> stub =
@@ -75,16 +77,16 @@ std::string CreateResource(const std::shared_ptr<grpc::Channel> &channel,
     if (model.has_tf()) {
         request.mutable_tf()->CopyFrom(model.tf());
     } else {
-        return "Unsupported model type";
+        std::cerr << "Error creating a session" << std::endl;
     }
 
     grpc::Status status = stub->CreateResource(&context, request, &response);
 
     if (status.ok()) {
-        return std::to_string(response.resource_id());
+        return response;
     } else {
-        // Handle error
-        return "Error creating resource";
+        std::cerr << "Error: Failed to create a resource" << std::endl;
+        return response;
     }
 }
 
@@ -164,7 +166,7 @@ UnregisterResource(const std::shared_ptr<grpc::Channel> &channel,
     return result;
 }
 
-std::vector<std::string>
+vaccel::ImageClassificationResponse
 ImageClassification(const std::shared_ptr<grpc::Channel> &channel,
                     grpc::ClientContext &context, int session_id,
                     const std::string &image) {
@@ -179,18 +181,18 @@ ImageClassification(const std::shared_ptr<grpc::Channel> &channel,
 
     grpc::Status status = stub->ImageClassification(&context, request, &response);
 
+
     if (status.ok()) {
-        std::vector<std::string> tags;
-        tags.push_back(response.tags());
-        return tags;
+        return response;
     } else {
-        std::cerr << "Error: Failed to classify image" << std::endl;
-        return {};
+        std::cerr << "Error: Failed to create an image classification request" << std::endl;
+        return response;
     }
 }
 
 
-vaccel::GenopResponse Genop(const std::shared_ptr<grpc::Channel> &channel,
+vaccel::GenopResponse 
+Genop(const std::shared_ptr<grpc::Channel> &channel,
                             grpc::ClientContext &context, int session_id,
                             const std::vector<vaccel::GenopArg> &read_args,
                             const std::vector<vaccel::GenopArg> &write_args) {
