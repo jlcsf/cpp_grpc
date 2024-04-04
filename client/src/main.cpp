@@ -144,7 +144,7 @@ int main(int argc, char *argv[]) {
 
         // Add an image
         vaccel::GenopArg read_arg_image;
-        std::string image_path = "/home/jl/exmpl-cmake-grpc/client/src/example.jpg";
+        std::string image_path = "client/src/example.jpg";
         std::vector<char> img_bytes = ReadImageFile(image_path);
 
         if (img_bytes.empty()) {

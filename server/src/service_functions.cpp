@@ -13,6 +13,10 @@ grpc::Status ServiceImpl::ImageClassification(::grpc::ServerContext *context,
                                                ::vaccel::ImageClassificationResponse *response) {
     printf("Received ImageClassification request\n");
 
+    std::string output_string = "Dummy classification tag";
+
+    response->set_tags(output_string);
+
     return grpc::Status::OK;
 }
 
