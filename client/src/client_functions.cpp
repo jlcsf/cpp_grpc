@@ -1,9 +1,11 @@
 #include <grpcpp/create_channel.h>
 #include <myproto/agent.grpc.pb.h>
 
-vaccel::CreateSessionResponse CreateSession(const std::shared_ptr<grpc::Channel> &channel,
-                          grpc::ClientContext &context, int flags) {
-
+vaccel::CreateSessionResponse CreateSession(
+    const std::shared_ptr<grpc::Channel>& channel,
+    grpc::ClientContext& context,
+    int flags) {
+    
     std::unique_ptr<vaccel::VaccelAgent::Stub> stub =
         vaccel::VaccelAgent::NewStub(channel);
 
@@ -21,10 +23,12 @@ vaccel::CreateSessionResponse CreateSession(const std::shared_ptr<grpc::Channel>
     }
 }
 
-vaccel::VaccelEmpty UpdateSession(const std::shared_ptr<grpc::Channel> &channel,
-                                  grpc::ClientContext &context, int session_id,
-                                  int flags) {
-
+vaccel::VaccelEmpty UpdateSession(
+    const std::shared_ptr<grpc::Channel>& channel,
+    grpc::ClientContext& context,
+    int session_id,
+    int flags) {
+    
     std::unique_ptr<vaccel::VaccelAgent::Stub> stub =
         vaccel::VaccelAgent::NewStub(channel);
     vaccel::UpdateSessionRequest request;
@@ -43,9 +47,11 @@ vaccel::VaccelEmpty UpdateSession(const std::shared_ptr<grpc::Channel> &channel,
     }
 }
 
-vaccel::VaccelEmpty
-DestroySession(const std::shared_ptr<grpc::Channel> &channel,
-               grpc::ClientContext &context, int session_id) {
+vaccel::VaccelEmpty DestroySession(
+    const std::shared_ptr<grpc::Channel>& channel,
+    grpc::ClientContext& context,
+    int session_id) {
+    
     vaccel::DestroySessionRequest request;
     std::unique_ptr<vaccel::VaccelAgent::Stub> stub =
         vaccel::VaccelAgent::NewStub(channel);
@@ -64,10 +70,11 @@ DestroySession(const std::shared_ptr<grpc::Channel> &channel,
     }
 }
 
-vaccel::CreateResourceResponse 
-CreateResource(const std::shared_ptr<grpc::Channel> &channel,
-                           grpc::ClientContext &context,
-                           const vaccel::CreateResourceRequest &model) {
+vaccel::CreateResourceResponse CreateResource(
+    const std::shared_ptr<grpc::Channel>& channel,
+    grpc::ClientContext& context,
+    const vaccel::CreateResourceRequest& model) {
+    
     std::unique_ptr<vaccel::VaccelAgent::Stub> stub =
         vaccel::VaccelAgent::NewStub(channel);
 
@@ -90,9 +97,11 @@ CreateResource(const std::shared_ptr<grpc::Channel> &channel,
     }
 }
 
-vaccel::VaccelEmpty
-DestroyResource(const std::shared_ptr<grpc::Channel> &channel,
-                grpc::ClientContext &context, int resource_id) {
+vaccel::VaccelEmpty DestroyResource(
+    const std::shared_ptr<grpc::Channel>& channel,
+    grpc::ClientContext& context,
+    int resource_id) {
+    
     std::unique_ptr<vaccel::VaccelAgent::Stub> stub =
         vaccel::VaccelAgent::NewStub(channel);
 
@@ -113,11 +122,12 @@ DestroyResource(const std::shared_ptr<grpc::Channel> &channel,
     return result;
 }
 
-vaccel::VaccelEmpty
-RegisterResource(const std::shared_ptr<grpc::Channel> &channel,
-                 grpc::ClientContext &context, int resource_id,
-                 int session_id) {
-
+vaccel::VaccelEmpty RegisterResource(
+    const std::shared_ptr<grpc::Channel>& channel,
+    grpc::ClientContext& context,
+    int resource_id,
+    int session_id) {
+    
     std::unique_ptr<vaccel::VaccelAgent::Stub> stub =
         vaccel::VaccelAgent::NewStub(channel);
     vaccel::RegisterResourceRequest request;
@@ -139,11 +149,12 @@ RegisterResource(const std::shared_ptr<grpc::Channel> &channel,
     return result;
 }
 
-vaccel::VaccelEmpty
-UnregisterResource(const std::shared_ptr<grpc::Channel> &channel,
-                   grpc::ClientContext &context, int resource_id,
-                   int session_id) {
-
+vaccel::VaccelEmpty UnregisterResource(
+    const std::shared_ptr<grpc::Channel>& channel,
+    grpc::ClientContext& context,
+    int resource_id,
+    int session_id) {
+    
     std::unique_ptr<vaccel::VaccelAgent::Stub> stub =
         vaccel::VaccelAgent::NewStub(channel);
 
@@ -166,10 +177,12 @@ UnregisterResource(const std::shared_ptr<grpc::Channel> &channel,
     return result;
 }
 
-vaccel::ImageClassificationResponse
-ImageClassification(const std::shared_ptr<grpc::Channel> &channel,
-                    grpc::ClientContext &context, int session_id,
-                    const std::string &image) {
+vaccel::ImageClassificationResponse ImageClassification(
+    const std::shared_ptr<grpc::Channel>& channel,
+    grpc::ClientContext& context,
+    int session_id,
+    const std::string& image) {
+    
     std::unique_ptr<vaccel::VaccelAgent::Stub> stub =
         vaccel::VaccelAgent::NewStub(channel);
 
@@ -181,7 +194,6 @@ ImageClassification(const std::shared_ptr<grpc::Channel> &channel,
 
     grpc::Status status = stub->ImageClassification(&context, request, &response);
 
-
     if (status.ok()) {
         return response;
     } else {
@@ -190,25 +202,26 @@ ImageClassification(const std::shared_ptr<grpc::Channel> &channel,
     }
 }
 
-
-vaccel::GenopResponse 
-Genop(const std::shared_ptr<grpc::Channel> &channel,
-                            grpc::ClientContext &context, int session_id,
-                            const std::vector<vaccel::GenopArg> &read_args,
-                            const std::vector<vaccel::GenopArg> &write_args) {
+vaccel::GenopResponse Genop(
+    const std::shared_ptr<grpc::Channel>& channel,
+    grpc::ClientContext& context,
+    int session_id,
+    const std::vector<vaccel::GenopArg>& read_args,
+    const std::vector<vaccel::GenopArg>& write_args) {
+    
     std::unique_ptr<vaccel::VaccelAgent::Stub> stub =
         vaccel::VaccelAgent::NewStub(channel);
 
     vaccel::GenopRequest request;
     request.set_session_id(session_id);
 
-    for (const auto &read_arg : read_args) {
-        auto *arg = request.add_read_args();
+    for (const auto& read_arg : read_args) {
+        auto* arg = request.add_read_args();
         arg->CopyFrom(read_arg);
     }
 
-    for (const auto &write_arg : write_args) {
-        auto *arg = request.add_write_args();
+    for (const auto& write_arg : write_args) {
+        auto* arg = request.add_write_args();
         arg->CopyFrom(write_arg);
     }
 
@@ -226,11 +239,12 @@ Genop(const std::shared_ptr<grpc::Channel> &channel,
     return response;
 }
 
-vaccel::TensorflowModelLoadResponse
-TensorflowModelLoad(const std::shared_ptr<grpc::Channel> &channel,
-                    grpc::ClientContext &context, int session_id,
-                    int model_id) {
-
+vaccel::TensorflowModelLoadResponse TensorflowModelLoad(
+    const std::shared_ptr<grpc::Channel>& channel,
+    grpc::ClientContext& context,
+    int session_id,
+    int model_id) {
+    
     std::unique_ptr<vaccel::VaccelAgent::Stub> stub =
         vaccel::VaccelAgent::NewStub(channel);
 
@@ -250,10 +264,12 @@ TensorflowModelLoad(const std::shared_ptr<grpc::Channel> &channel,
     }
 }
 
-vaccel::TensorflowModelUnloadResponse
-TensorflowModelUnload(const std::shared_ptr<grpc::Channel> &channel,
-                      grpc::ClientContext &context, int session_id,
-                      int model_id) {
+vaccel::TensorflowModelUnloadResponse TensorflowModelUnload(
+    const std::shared_ptr<grpc::Channel>& channel,
+    grpc::ClientContext& context,
+    int session_id,
+    int model_id) {
+    
     std::unique_ptr<vaccel::VaccelAgent::Stub> stub =
         vaccel::VaccelAgent::NewStub(channel);
 
@@ -274,14 +290,16 @@ TensorflowModelUnload(const std::shared_ptr<grpc::Channel> &channel,
     }
 }
 
-vaccel::TensorflowModelRunResponse
-TensorflowModelRun(const std::shared_ptr<grpc::Channel> &channel,
-                   grpc::ClientContext &context, int session_id, int model_id,
-                   const std::string &run_options,
-                   const std::vector<std::pair<std::string, int>> &in_nodes,
-                   const std::vector<std::pair<std::string, int>> &out_nodes,
-                   const std::vector<uint8_t> &in_tensors_data) {
-
+vaccel::TensorflowModelRunResponse TensorflowModelRun(
+    const std::shared_ptr<grpc::Channel>& channel,
+    grpc::ClientContext& context,
+    int session_id,
+    int model_id,
+    const std::string& run_options,
+    const std::vector<std::pair<std::string, int>>& in_nodes,
+    const std::vector<std::pair<std::string, int>>& out_nodes,
+    const std::vector<uint8_t>& in_tensors_data) {
+    
     std::unique_ptr<vaccel::VaccelAgent::Stub> stub =
         vaccel::VaccelAgent::NewStub(channel);
 
@@ -290,14 +308,14 @@ TensorflowModelRun(const std::shared_ptr<grpc::Channel> &channel,
     request.set_model_id(model_id);
     request.set_run_options(run_options);
 
-    for (const auto &node_name : in_nodes) {
-        vaccel::TFNode *in_node = request.add_in_nodes();
+    for (const auto& node_name : in_nodes) {
+        vaccel::TFNode* in_node = request.add_in_nodes();
         in_node->set_name(node_name.first);
         in_node->set_id(node_name.second);
     }
 
-    for (const auto &node_name : out_nodes) {
-        vaccel::TFNode *out_node = request.add_out_nodes();
+    for (const auto& node_name : out_nodes) {
+        vaccel::TFNode* out_node = request.add_out_nodes();
         out_node->set_name(node_name.first);
         out_node->set_id(node_name.second);
     }

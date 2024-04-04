@@ -20,7 +20,7 @@
 
 #include "client_functions.h"
 
-std::vector<char> ReadImageFile(const std::string &filename) {
+std::vector<char> ReadImageFile(const std::string& filename) {
     std::ifstream file(filename, std::ios::binary | std::ios::ate);
     if (!file.is_open()) {
         std::cerr << "Error opening file: " << filename << std::endl;
@@ -44,7 +44,7 @@ std::vector<char> ReadImageFile(const std::string &filename) {
     return buffer;
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
     auto channel = grpc::CreateChannel("localhost:50051", grpc::InsecureChannelCredentials());
 
     if (!channel) {
@@ -119,7 +119,7 @@ int main(int argc, char *argv[]) {
         std::cout << "-------------------------------------- " << std::endl;
         std::cout << "Output for image classification: " << std::endl;
 
-        for (const auto &tag : output) {
+        for (const auto& tag : output) {
             std::cout << tag << std::endl;
         }
 
@@ -141,14 +141,13 @@ int main(int argc, char *argv[]) {
         read_arg_op.set_buf(bytes.data(), bytes.size());
         read_args.push_back(read_arg_op);
 
-
         // Add an image
         vaccel::GenopArg read_arg_image;
         std::string image_path = "client/src/example.jpg";
         std::vector<char> img_bytes = ReadImageFile(image_path);
 
         if (img_bytes.empty()) {
-          return 1;
+            return 1;
         }
 
         std::string img_str(img_bytes.begin(), img_bytes.end());
@@ -159,26 +158,23 @@ int main(int argc, char *argv[]) {
 
         std::string byte_data(100, ' ');
         for (int i = 0; i < 2; ++i) {
-          vaccel::GenopArg write_arg;
-          write_arg.set_argtype(2);
-          write_arg.set_size(byte_data.size());
-          write_arg.set_buf(byte_data);
-          write_args.push_back(write_arg);
+            vaccel::GenopArg write_arg;
+            write_arg.set_argtype(2);
+            write_arg.set_size(byte_data.size());
+            write_arg.set_buf(byte_data);
+            write_args.push_back(write_arg);
         }
         vaccel::GenopResponse genop_result =
             Genop(channel, context, session_id, read_args, write_args);
 
-        std::cout << "--------------- RETURN FOR GENOP OPERATION: ---------------"
-                  << std::endl;
+        std::cout << "--------------- RETURN FOR GENOP OPERATION: ---------------" << std::endl;
 
-        for (const auto &arg : genop_result.genop_result().write_args()) {
-          std::string output(reinterpret_cast<const char *>(arg.buf().data()),
-                            arg.buf().size());
-          std::cout << "Output: " << output << std::endl;
+        for (const auto& arg : genop_result.genop_result().write_args()) {
+            std::string output(reinterpret_cast<const char*>(arg.buf().data()), arg.buf().size());
+            std::cout << "Output: " << output << std::endl;
         }
 
-        std::cout << "--------------- FOR GENOP OPERATION: ---------------"
-                  << std::endl;
+        std::cout << "--------------- FOR GENOP OPERATION: ---------------" << std::endl;
     }
 
     {

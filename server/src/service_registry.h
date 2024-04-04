@@ -17,15 +17,16 @@
 
 class ServiceImpl final : public vaccel::VaccelAgent::Service {
 public:
+
     // Genop operation
     grpc::Status Genop(::grpc::ServerContext *context,
                        const ::vaccel::GenopRequest *request,
                        ::vaccel::GenopResponse *response) override;
 
-    grpc::Status ImageClassification(
-        ::grpc::ServerContext *context,
-        const ::vaccel::ImageClassificationRequest *request,
-        ::vaccel::ImageClassificationResponse *response) override;
+    // Image classification
+    grpc::Status ImageClassification(::grpc::ServerContext *context,
+                        const ::vaccel::ImageClassificationRequest *request,
+                        ::vaccel::ImageClassificationResponse *response) override;
 
     // Register resource
     grpc::Status RegisterResource(::grpc::ServerContext *context,
@@ -46,13 +47,18 @@ public:
     grpc::Status CreateResource(::grpc::ServerContext *context,
                                  const ::vaccel::CreateResourceRequest *request,
                                  ::vaccel::CreateResourceResponse *response) override;
-
+    
+    // Create session
     grpc::Status CreateSession(::grpc::ServerContext *context,
                                 const ::vaccel::CreateSessionRequest *request,
                                 ::vaccel::CreateSessionResponse *response) override;
+    
+    // Update session
     grpc::Status UpdateSession(::grpc::ServerContext *context,
                                 const ::vaccel::UpdateSessionRequest *request,
                                 ::vaccel::VaccelEmpty *response) override;
+    
+    // Destroy session
     grpc::Status DestroySession(::grpc::ServerContext *context,
                                 const ::vaccel::DestroySessionRequest *request,
                                 ::vaccel::VaccelEmpty *response) override;
