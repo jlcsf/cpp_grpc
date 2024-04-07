@@ -2,8 +2,7 @@
 #include <grpc/grpc.h>
 #include <grpcpp/create_channel.h>
 #include <memory>
-#include <myproto/x_address.pb.h>
-#include <myproto/x_addressbook.grpc.pb.h>
+
 #include <myproto/agent.grpc.pb.h>
 #include <myproto/error.pb.h>
 #include <myproto/genop.pb.h>
@@ -58,7 +57,7 @@ int main(int argc, char* argv[]) {
     {
         grpc::ClientContext context;
         vaccel::CreateSessionResponse response;
-        response = CreateSession(channel, context, 5); // Create session with flag 5
+        response = CreateSession(channel, context, 5); // create session with flag 5
 
         session_id = response.session_id();
 
@@ -72,7 +71,7 @@ int main(int argc, char* argv[]) {
 
     {
         grpc::ClientContext context;
-        vaccel::VaccelEmpty response = UpdateSession(channel, context, session_id, 1);
+        vaccel::VaccelEmpty response = UpdateSession(channel, context, session_id, 1); // update session to change its flag to 1
 
         std::cout << "Session has been updated with the new flag" << std::endl;
     }
@@ -94,7 +93,7 @@ int main(int argc, char* argv[]) {
     {
         grpc::ClientContext context;
         vaccel::VaccelEmpty response;
-        response = RegisterResource(channel, context, resource_id, session_id);
+        response = RegisterResource(channel, context, resource_id, session_id); // register resource to the session
         std::cout << "Resource has been registered" << std::endl;
     }
 
@@ -179,19 +178,19 @@ int main(int argc, char* argv[]) {
 
     {
         grpc::ClientContext context;
-        vaccel::VaccelEmpty response = UnregisterResource(channel, context, resource_id, session_id);
+        vaccel::VaccelEmpty response = UnregisterResource(channel, context, resource_id, session_id); // unregister the sesssion...
         std::cout << "Resource has been unregistered" << std::endl;
     }
 
     {
         grpc::ClientContext context;
-        vaccel::VaccelEmpty result = DestroyResource(channel, context, resource_id);
+        vaccel::VaccelEmpty result = DestroyResource(channel, context, resource_id); // destroy the resource
         std::cout << "Resource has been destroyed" << std::endl;
     }
 
     {
         grpc::ClientContext context;
-        vaccel::VaccelEmpty result = DestroySession(channel, context, session_id);
+        vaccel::VaccelEmpty result = DestroySession(channel, context, session_id); // destroy the session
         std::cout << "Session has been destroyed" << std::endl;
     }
 
