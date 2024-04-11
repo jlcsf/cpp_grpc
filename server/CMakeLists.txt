@@ -1,4 +1,3 @@
-
 find_package(Threads)
 
 
@@ -15,4 +14,5 @@ add_executable(server ${SOURCES})
 target_link_libraries(server
     PRIVATE
         myproto
+        vaccel
 )

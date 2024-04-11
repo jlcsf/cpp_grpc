@@ -1,9 +1,86 @@
 #include "service_registry.h"
+#include "vaccel.h"
+#include <ops/vaccel_ops.h>
+#include <cstdint>
 
 grpc::Status ServiceImpl::Genop(::grpc::ServerContext *context,
                                 const ::vaccel::GenopRequest *request,
                                 ::vaccel::GenopResponse *response) {
     printf("Received Genop request with session ID: %d\n", request->session_id());
+
+    int len_read = 0;
+    int len_write = 0;
+
+    // Retrieve read arguments
+    printf("Read arguments:\n");
+    for (const auto& arg : request->read_args()) {
+        printf("  Argument type: %d, Size: %d\n", arg.argtype(), arg.size());
+        len_read += 1;
+    }
+
+    // Retrieve write arguments
+    printf("Write arguments:\n");
+    for (const auto& arg : request->write_args()) {
+        printf("  Argument type: %d, Size: %d\n", arg.argtype(), arg.size());
+        len_write += 1;
+    }
+
+    printf("Total length of read arguments: %d\n", len_read);
+    printf("Total length of write arguments: %d\n", len_write);
+
+    /// here a function get a pointer to a session
+
+    // but let's just create a session and use that instead.
+
+    struct vaccel_session sess;
+    struct vaccel_arg read[len_read];
+    struct vaccel_arg write[len_write];
+    enum vaccel_op_type op_type;
+
+    const vaccel::GenopArg& genop_arg = request->read_args(0);
+    const std::string& byte_sequence = genop_arg.buf();
+
+    if (byte_sequence.size() >= sizeof(std::uint32_t)) {
+        std::uint32_t value;
+        std::memcpy(&value, byte_sequence.data(), sizeof(value));
+
+        op_type = static_cast<vaccel_op_type>(value);
+    } else {
+        // byte sequence does not contain enough bytes
+    }
+
+    read[0].size = sizeof(enum vaccel_op_type);
+    read[0].buf = &op_type;
+
+
+    for (size_t i = 1; i < len_read; ++i) {
+        const std::string& arg_buf = request->read_args(i).buf();
+        read[i].size = arg_buf.size();
+        read[i].buf = const_cast<char*>(arg_buf.data());
+    }
+
+    for (size_t i = 0; i < len_write; ++i) {
+        const std::string& arg_buf = request->write_args(i).buf();
+        write[i].size = arg_buf.size();
+        write[i].buf = const_cast<char*>(arg_buf.data());
+    }
+
+
+    int ret;
+
+    ret = vaccel_sess_init(&sess, 0);
+    if (!ret) {
+        std::cout << "Sess has been init" << std::endl;
+    }
+    
+    ret = vaccel_genop(&sess, read, len_read, write, len_write);
+    std::cout << "Return value of vaccel_genop: " << ret << std::endl;
+    
+    ret = vaccel_sess_free(&sess);
+    if (!ret) {
+        std::cout << "Sess has been freed" << std::endl;
+    }
+
 
     return grpc::Status::OK;
 }

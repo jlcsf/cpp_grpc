@@ -155,7 +155,7 @@ int main(int argc, char* argv[]) {
         read_arg_image.set_buf(img_str);
         read_args.push_back(read_arg_image);
 
-        std::string byte_data(100, ' ');
+        std::string byte_data(512, ' ');
         for (int i = 0; i < 2; ++i) {
             vaccel::GenopArg write_arg;
             write_arg.set_argtype(2);
