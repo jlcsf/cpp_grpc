@@ -339,3 +339,33 @@ vaccel::TensorflowModelRunResponse TensorflowModelRun(
         return response;
     }
 }
+
+
+vaccel::TorchJitloadForwardResponse TorchJitloadForward(
+    const std::shared_ptr<grpc::Channel> &channel, int session_id,
+    grpc::ClientContext& context,
+    int model_id,
+    const std::string &run_options,
+    const std::vector<vaccel::TorchTensor> &in_tensors) {
+    
+    std::unique_ptr<vaccel::VaccelAgent::Stub> stub =
+        vaccel::VaccelAgent::NewStub(channel);
+
+    vaccel::TorchJitloadForwardRequest request;
+    request.set_session_id(session_id);
+    request.set_model_id(model_id);
+    request.set_run_options(run_options);
+     
+    // set in torch tensors  
+
+    vaccel::TorchJitloadForwardResponse response;
+
+    grpc::Status status = stub->TorchJitloadForward(&context, request, &response);
+
+    if (status.ok()) {
+        return response;
+    } else {
+        std::cerr << "Error: Failed to run TensorFlow model" << std::endl;
+        return response;
+    }
+}

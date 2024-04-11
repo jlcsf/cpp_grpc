@@ -178,6 +178,14 @@ int main(int argc, char* argv[]) {
 
     {
         grpc::ClientContext context;
+        std::string run_options;
+        vaccel::TorchTensor in_tensors;
+        vaccel::TorchJitloadForwardResponse response = TorchJitloadForward(channel, session_id, context, 1, run_options, {in_tensors});
+        std::cout << "TorchJITForward has been carried out" << std::endl;
+    }
+
+    {
+        grpc::ClientContext context;
         vaccel::VaccelEmpty response = UnregisterResource(channel, context, resource_id, session_id); // unregister the sesssion...
         std::cout << "Resource has been unregistered" << std::endl;
     }

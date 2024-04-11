@@ -70,4 +70,13 @@ vaccel::TensorflowModelRunResponse TensorflowModelRun(
     const std::vector<std::pair<std::string, int>> &out_nodes,
     const std::vector<uint8_t> &in_tensors_data);
 
+
+vaccel::TorchJitloadForwardResponse TorchJitloadForward(
+    const std::shared_ptr<grpc::Channel> &channel, int session_id,
+    grpc::ClientContext& context,
+    int model_id,
+    const std::string &run_options,
+    const std::vector<vaccel::TorchTensor> &in_tensors
+);
+
 #endif // VACCEL_CLIENT_FUNCTIONS_H

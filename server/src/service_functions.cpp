@@ -185,3 +185,13 @@ grpc::Status ServiceImpl::TensorflowModelRun(::grpc::ServerContext *context,
 
     return grpc::Status::OK;
 }
+
+grpc::Status ServiceImpl::TorchJitloadForward(::grpc::ServerContext *context,
+                                     const ::vaccel::TorchJitloadForwardRequest *request,
+                                     ::vaccel::TorchJitloadForwardResponse *response) {
+
+    printf("Received TensorflowModelRun request with model ID: %ld\n", request->model_id());
+
+    return grpc::Status::OK;
+
+}

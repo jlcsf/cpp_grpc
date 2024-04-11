@@ -77,6 +77,13 @@ public:
     grpc::Status TensorflowModelRun(::grpc::ServerContext *context,
                                      const ::vaccel::TensorflowModelRunRequest *request,
                                      ::vaccel::TensorflowModelRunResponse *response) override;
+
+
+    // Torch JIT Forward Load
+    grpc::Status TorchJitloadForward(::grpc::ServerContext *context,
+                                     const ::vaccel::TorchJitloadForwardRequest *request,
+                                     ::vaccel::TorchJitloadForwardResponse *response) override ;
+
 };
 
 #endif // SERVICE_REGISTRY_H
