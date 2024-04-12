@@ -2,6 +2,7 @@
 #include "vaccel.h"
 #include <ops/vaccel_ops.h>
 #include <cstdint>
+#include <session.h>
 
 grpc::Status ServiceImpl::Genop(::grpc::ServerContext *context,
                                 const ::vaccel::GenopRequest *request,
@@ -28,11 +29,16 @@ grpc::Status ServiceImpl::Genop(::grpc::ServerContext *context,
     printf("Total length of read arguments: %d\n", len_read);
     printf("Total length of write arguments: %d\n", len_write);
 
-    /// here a function get a pointer to a session
 
-    // but let's just create a session and use that instead.
+    uint32_t session_id = request->session_id();
 
-    struct vaccel_session sess;
+    auto it = sessions_map.find(session_id);
+    if (it == sessions_map.end()) {
+        return grpc::Status(grpc::StatusCode::NOT_FOUND, "Session ID not found");
+    }
+
+    vaccel_session *sess_ptr = &(it->second);
+
     struct vaccel_arg read[len_read];
     struct vaccel_arg write[len_write];
     enum vaccel_op_type op_type;
@@ -67,19 +73,8 @@ grpc::Status ServiceImpl::Genop(::grpc::ServerContext *context,
 
 
     int ret;
-
-    ret = vaccel_sess_init(&sess, 0);
-    if (!ret) {
-        std::cout << "Sess has been init" << std::endl;
-    }
-    
-    ret = vaccel_genop(&sess, read, len_read, write, len_write);
+    ret = vaccel_genop(sess_ptr, read, len_read, write, len_write);
     std::cout << "Return value of vaccel_genop: " << ret << std::endl;
-    
-    ret = vaccel_sess_free(&sess);
-    if (!ret) {
-        std::cout << "Sess has been freed" << std::endl;
-    }
 
 
     return grpc::Status::OK;
@@ -139,8 +134,16 @@ grpc::Status ServiceImpl::CreateSession(::grpc::ServerContext *context,
                                          ::vaccel::CreateSessionResponse *response) {
     printf("Received CreateSession request with flag: %d\n", request->flags());
 
-    uint32_t dummy_session_id = 12345;
-    response->set_session_id(dummy_session_id);
+    vaccel_session sess;
+    int ret = vaccel_sess_init(&sess, request->flags());
+    if (ret != 0) {
+        return grpc::Status(grpc::StatusCode::INTERNAL, "Failed to initialize session");
+    }
+
+    uint32_t session_id = sess.session_id;
+    response->set_session_id(session_id);
+
+    sessions_map[session_id] = sess;
 
     return grpc::Status::OK;
 }
@@ -150,17 +153,47 @@ grpc::Status ServiceImpl::UpdateSession(::grpc::ServerContext *context,
                                         ::vaccel::VaccelEmpty *response) {
     printf("Received UpdateSession request with flag: %d\n", request->flags());
 
+    uint32_t session_id = request->session_id();
+
+    auto it = sessions_map.find(session_id);
+    if (it == sessions_map.end()) {
+        return grpc::Status(grpc::StatusCode::NOT_FOUND, "Session ID not found");
+    }
+
+    vaccel_session *sess_ptr = &(it->second);
+
+    int ret = vaccel_sess_update(sess_ptr, request->flags());
+    if (ret != 0) {
+        return grpc::Status(grpc::StatusCode::INTERNAL, "Failed to update session");
+    }
+
     return grpc::Status::OK;
 }
 
 grpc::Status ServiceImpl::DestroySession(::grpc::ServerContext *context,
-                                          const ::vaccel::DestroySessionRequest *request,
-                                          ::vaccel::VaccelEmpty *response) {
-    printf("Received DestroySession request with session ID: %d\n",
-           request->session_id());
+                                         const ::vaccel::DestroySessionRequest *request,
+                                         ::vaccel::VaccelEmpty *response) {
+    printf("Received DestroySession request with session ID: %d\n", request->session_id());
+
+    uint32_t session_id = request->session_id();
+
+    auto it = sessions_map.find(session_id);
+    if (it == sessions_map.end()) {
+        return grpc::Status(grpc::StatusCode::NOT_FOUND, "Session ID not found");
+    }
+
+    vaccel_session *sess_ptr = &(it->second);
+
+    int ret = vaccel_sess_free(sess_ptr);
+    if (ret != VACCEL_OK) {
+        return grpc::Status(grpc::StatusCode::INTERNAL, "Failed to destroy session");
+    }
+
+    sessions_map.erase(it);
 
     return grpc::Status::OK;
 }
+
 
 grpc::Status ServiceImpl::TensorflowModelLoad(::grpc::ServerContext *context,
                                                const ::vaccel::TensorflowModelLoadRequest *request,

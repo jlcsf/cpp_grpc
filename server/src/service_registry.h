@@ -15,8 +15,18 @@
 #include <myproto/tensorflow.pb.h>
 #include <myproto/torch.pb.h>
 
+#include <session.h>
+#include <stdexcept>
+#include <sys/types.h>
+#include <unordered_map>
+#include "vaccel.h"
+
 class ServiceImpl final : public vaccel::VaccelAgent::Service {
 public:
+
+    using SessionMap = std::unordered_map<uint32_t, vaccel_session>;
+
+    ServiceImpl() {}
 
     // Genop operation
     grpc::Status Genop(::grpc::ServerContext *context,
@@ -84,6 +94,12 @@ public:
                                      const ::vaccel::TorchJitloadForwardRequest *request,
                                      ::vaccel::TorchJitloadForwardResponse *response) override ;
 
+
+private:
+
+    SessionMap sessions_map;
+
 };
+
 
 #endif // SERVICE_REGISTRY_H
