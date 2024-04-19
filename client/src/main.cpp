@@ -44,163 +44,162 @@ std::vector<char> ReadImageFile(const std::string& filename) {
 }
 
 int main(int argc, char* argv[]) {
+    
     auto channel = grpc::CreateChannel("localhost:50051", grpc::InsecureChannelCredentials());
-
     if (!channel) {
         std::cerr << "Failed to connect to the server" << std::endl;
         return 1;
     }
 
-    int session_id = 99999;
-    int resource_id = 99999;
+    int session_id = 999;
+    int resource_id = 999;
+    std::string function;
 
-    {
-        grpc::ClientContext context;
-        vaccel::CreateSessionResponse response;
-        response = CreateSession(channel, context, 5); // create session with flag 5
+    while (true) {
+        std::cout << "Enter function name (or 'quit' to exit): ";
+        std::cin >> function;
 
-        session_id = response.session_id();
+        if (function == "quit") {
+            break;
 
-        if (session_id != 99999) {
-            std::cout << "Session ID: " << session_id << " has been created" << std::endl;
+        } else if (function == "CreateSession") {
+
+            grpc::ClientContext context;
+            vaccel::CreateSessionResponse response = CreateSession(channel, context, 5);
+            std::cout << "Session ID: " << response.session_id() << " has been created" << std::endl;
+            session_id = response.session_id();
+
+        } else if (function == "UpdateSession") {
+
+            grpc::ClientContext context;
+            vaccel::VaccelEmpty response = UpdateSession(channel, context, 123, 1);
+            std::cout << "Session has been updated with the new flag" << std::endl;
+        
+        } else if (function == "CreateResource") {
+
+            grpc::ClientContext context;
+            vaccel::CreateResourceRequest request;
+            vaccel::CreateResourceResponse response;
+            request.mutable_tf();
+            response = CreateResource(channel, context, request);
+            std::cout << "Resource created with resource ID: " << resource_id << std::endl;
+            resource_id = response.resource_id();
+        
+        } else if (function == "RegisterResource") {
+
+            grpc::ClientContext context;
+            vaccel::VaccelEmpty response;
+            response = RegisterResource(channel, context, resource_id, session_id); // register resource to the session
+            std::cout << "Resource has been registered" << std::endl;
+        
+        } else if (function == "ReadImage") {
+
+            grpc::ClientContext context;
+            vaccel::ImageClassificationResponse response;
+            std::string image_path = "/home/jl/exmpl-cmake-grpc/client/src/example.jpg";
+            std::vector<char> img_bytes = ReadImageFile(image_path);
+
+            if (img_bytes.empty()) {
+                std::cerr << "Error: Failed to read image file." << std::endl;
+                return 1;
+            }
+
+            std::string img_str(img_bytes.begin(), img_bytes.end());
+
+            response = ImageClassification(channel, context, session_id, img_str);
+
+            std::vector<std::string> output;
+            output.push_back(response.tags());
+
+            std::cout << "-------------------------------------- " << std::endl;
+            std::cout << "Output for image classification: " << std::endl;
+
+            for (const auto& tag : output) {
+                std::cout << tag << std::endl;
+            }
+
+            std::cout << "-------------------------------------- " << std::endl;
+
+        } else if (function == "Genop") {
+
+            grpc::ClientContext context;
+            std::vector<vaccel::GenopArg> read_args;
+            std::vector<vaccel::GenopArg> write_args;
+
+            vaccel::GenopArg read_arg_op;
+            read_arg_op.set_argtype(1);
+            read_arg_op.set_size(sizeof(int));
+            int op_value = 2; // image classify
+            std::vector<char> bytes(sizeof(op_value));
+            std::memcpy(bytes.data(), &op_value, sizeof(op_value));
+
+            read_arg_op.set_buf(bytes.data(), bytes.size());
+            read_args.push_back(read_arg_op);
+
+            // Add an image
+            vaccel::GenopArg read_arg_image;
+            std::string image_path = "client/src/example.jpg";
+            std::vector<char> img_bytes = ReadImageFile(image_path);
+
+            if (img_bytes.empty()) {
+                return 1;
+            }
+
+            std::string img_str(img_bytes.begin(), img_bytes.end());
+            read_arg_image.set_argtype(1);
+            read_arg_image.set_size(img_str.size());
+            read_arg_image.set_buf(img_str);
+            read_args.push_back(read_arg_image);
+
+            std::string byte_data(512, ' ');
+            for (int i = 0; i < 2; ++i) {
+                vaccel::GenopArg write_arg;
+                write_arg.set_argtype(2);
+                write_arg.set_size(byte_data.size());
+                write_arg.set_buf(byte_data);
+                write_args.push_back(write_arg);
+            }
+            vaccel::GenopResponse genop_result =
+                Genop(channel, context, session_id, read_args, write_args);
+
+            std::cout << "--------------- RETURN FOR GENOP OPERATION: ---------------" << std::endl;
+
+            for (const auto& arg : genop_result.genop_result().write_args()) {
+                std::string output(reinterpret_cast<const char*>(arg.buf().data()), arg.buf().size());
+                std::cout << "Output: " << output << std::endl;
+            }
+
+            std::cout << "--------------- FOR GENOP OPERATION: ---------------" << std::endl;
+
+        } else if (function == "TorchJITFoward") {
+
+            grpc::ClientContext context;
+            std::string run_options;
+            vaccel::TorchTensor in_tensors;
+            vaccel::TorchJitloadForwardResponse response = TorchJitloadForward(channel, session_id, context, 1, run_options, {in_tensors});
+            std::cout << "TorchJITForward has been carried out" << std::endl;
+
+        } else if (function == "UnregisterResource") {
+
+            grpc::ClientContext context;
+            vaccel::VaccelEmpty response = UnregisterResource(channel, context, resource_id, session_id); // unregister the sesssion...
+            std::cout << "Resource has been unregistered" << std::endl;
+
+        } else if (function == "DestroyResource") {
+            
+            grpc::ClientContext context;
+            vaccel::VaccelEmpty result = DestroyResource(channel, context, resource_id); // destroy the resource
+            std::cout << "Resource has been destroyed" << std::endl;
+
+        } else if (function == "DeleteSession") {
+
+            grpc::ClientContext context;
+            vaccel::VaccelEmpty response = DestroySession(channel, context, session_id);
         } else {
-            std::cerr << "Error: Failed to create session." << std::endl;
-            return 1;
+            std::cerr << "Unknown function: " << function << std::endl;
         }
-    }
-
-    {
-        grpc::ClientContext context;
-        vaccel::VaccelEmpty response = UpdateSession(channel, context, session_id, 1); // update session to change its flag to 1
-
-        std::cout << "Session has been updated with the new flag" << std::endl;
-    }
-
-    {
-        grpc::ClientContext context;
-        vaccel::CreateResourceRequest request;
-        vaccel::CreateResourceResponse response;
-        request.mutable_tf();
-        response = CreateResource(channel, context, request);
-        resource_id = response.resource_id();
-        if (resource_id == 99999) {
-            std::cerr << "Error: Failed to create resource." << std::endl;
-            return 1;
-        }
-        std::cout << "Resource created with resource ID: " << resource_id << std::endl;
-    }
-
-    {
-        grpc::ClientContext context;
-        vaccel::VaccelEmpty response;
-        response = RegisterResource(channel, context, resource_id, session_id); // register resource to the session
-        std::cout << "Resource has been registered" << std::endl;
-    }
-
-    {
-        grpc::ClientContext context;
-        vaccel::ImageClassificationResponse response;
-        std::string image_path = "/home/jl/exmpl-cmake-grpc/client/src/example.jpg";
-        std::vector<char> img_bytes = ReadImageFile(image_path);
-
-        if (img_bytes.empty()) {
-            std::cerr << "Error: Failed to read image file." << std::endl;
-            return 1;
-        }
-
-        std::string img_str(img_bytes.begin(), img_bytes.end());
-
-        response = ImageClassification(channel, context, session_id, img_str);
-
-        std::vector<std::string> output;
-        output.push_back(response.tags());
-
-        std::cout << "-------------------------------------- " << std::endl;
-        std::cout << "Output for image classification: " << std::endl;
-
-        for (const auto& tag : output) {
-            std::cout << tag << std::endl;
-        }
-
-        std::cout << "-------------------------------------- " << std::endl;
-    }
-
-    {
-        grpc::ClientContext context;
-        std::vector<vaccel::GenopArg> read_args;
-        std::vector<vaccel::GenopArg> write_args;
-
-        vaccel::GenopArg read_arg_op;
-        read_arg_op.set_argtype(1);
-        read_arg_op.set_size(sizeof(int));
-        int op_value = 2; // image classify
-        std::vector<char> bytes(sizeof(op_value));
-        std::memcpy(bytes.data(), &op_value, sizeof(op_value));
-
-        read_arg_op.set_buf(bytes.data(), bytes.size());
-        read_args.push_back(read_arg_op);
-
-        // Add an image
-        vaccel::GenopArg read_arg_image;
-        std::string image_path = "client/src/example.jpg";
-        std::vector<char> img_bytes = ReadImageFile(image_path);
-
-        if (img_bytes.empty()) {
-            return 1;
-        }
-
-        std::string img_str(img_bytes.begin(), img_bytes.end());
-        read_arg_image.set_argtype(1);
-        read_arg_image.set_size(img_str.size());
-        read_arg_image.set_buf(img_str);
-        read_args.push_back(read_arg_image);
-
-        std::string byte_data(512, ' ');
-        for (int i = 0; i < 2; ++i) {
-            vaccel::GenopArg write_arg;
-            write_arg.set_argtype(2);
-            write_arg.set_size(byte_data.size());
-            write_arg.set_buf(byte_data);
-            write_args.push_back(write_arg);
-        }
-        vaccel::GenopResponse genop_result =
-            Genop(channel, context, session_id, read_args, write_args);
-
-        std::cout << "--------------- RETURN FOR GENOP OPERATION: ---------------" << std::endl;
-
-        for (const auto& arg : genop_result.genop_result().write_args()) {
-            std::string output(reinterpret_cast<const char*>(arg.buf().data()), arg.buf().size());
-            std::cout << "Output: " << output << std::endl;
-        }
-
-        std::cout << "--------------- FOR GENOP OPERATION: ---------------" << std::endl;
-    }
-
-    {
-        grpc::ClientContext context;
-        std::string run_options;
-        vaccel::TorchTensor in_tensors;
-        vaccel::TorchJitloadForwardResponse response = TorchJitloadForward(channel, session_id, context, 1, run_options, {in_tensors});
-        std::cout << "TorchJITForward has been carried out" << std::endl;
-    }
-
-    {
-        grpc::ClientContext context;
-        vaccel::VaccelEmpty response = UnregisterResource(channel, context, resource_id, session_id); // unregister the sesssion...
-        std::cout << "Resource has been unregistered" << std::endl;
-    }
-
-    {
-        grpc::ClientContext context;
-        vaccel::VaccelEmpty result = DestroyResource(channel, context, resource_id); // destroy the resource
-        std::cout << "Resource has been destroyed" << std::endl;
-    }
-
-    {
-        grpc::ClientContext context;
-        vaccel::VaccelEmpty result = DestroySession(channel, context, session_id); // destroy the session
-        std::cout << "Session has been destroyed" << std::endl;
     }
 
     return 0;
 }
+
