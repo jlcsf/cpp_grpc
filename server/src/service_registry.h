@@ -94,6 +94,9 @@ public:
                                      const ::vaccel::TorchJitloadForwardRequest *request,
                                      ::vaccel::TorchJitloadForwardResponse *response) override ;
 
+    grpc::Status ImagePose(::grpc::ServerContext *context,
+                                     const ::vaccel::ImagePoseRequest *request,
+                                     ::vaccel::ImagePoseResponse *response) override ;
 
 private:
 

@@ -1,7 +1,9 @@
 #include "service_registry.h"
 #include "vaccel.h"
+#include <ops/torch.h>
 #include <ops/vaccel_ops.h>
 #include <cstdint>
+#include <resources/torch_saved_model.h>
 #include <session.h>
 
 grpc::Status ServiceImpl::Genop(::grpc::ServerContext *context,
@@ -219,12 +221,70 @@ grpc::Status ServiceImpl::TensorflowModelRun(::grpc::ServerContext *context,
     return grpc::Status::OK;
 }
 
-grpc::Status ServiceImpl::TorchJitloadForward(::grpc::ServerContext *context,
-                                     const ::vaccel::TorchJitloadForwardRequest *request,
-                                     ::vaccel::TorchJitloadForwardResponse *response) {
+void convertTorchTensor(const vaccel::TorchTensor &src, struct vaccel_torch_tensor &dst) {
+    dst.data = const_cast<char*>(src.data().data());
+    dst.size = src.data().size();
+    dst.dims = const_cast<int32_t*>(reinterpret_cast<const int32_t*>(src.dims().data()));
+    dst.nr_dims = src.dims_size();
+}
 
-    printf("Received TensorflowModelRun request with model ID: %ld\n", request->model_id());
+grpc::Status ServiceImpl::TorchJitloadForward(::grpc::ServerContext *context,
+                                              const ::vaccel::TorchJitloadForwardRequest *request,
+                                              ::vaccel::TorchJitloadForwardResponse *response) {
+    printf("Received TorchJitloadForward request with model ID: %ld\n", request->model_id());
+    int session_id = request->session_id();
+    int model_id = request->model_id();
+    std::string bytes = request->run_options();
+
+    int tensor_count = request->in_tensors_size();
+
+    std::vector<vaccel::TorchTensor> tensor_vector;
+    for (int i = 0; i < tensor_count; ++i) {
+        tensor_vector.push_back(request->in_tensors(i));
+    }
+
+    std::vector<vaccel_torch_tensor> converted_tensors(tensor_count);
+    std::vector<vaccel_torch_tensor*> tensor_ptrs(tensor_count);
+
+    for (int i = 0; i < tensor_count; ++i) {
+        convertTorchTensor(tensor_vector[i], converted_tensors[i]);
+        tensor_ptrs[i] = &converted_tensors[i];
+    }
+
+    auto it = sessions_map.find(session_id);
+    if (it == sessions_map.end()) {
+        return grpc::Status(grpc::StatusCode::NOT_FOUND, "Session ID not found");
+    }
+
+    struct vaccel_session *sess_ptr = &(it->second);
+    struct vaccel_torch_saved_model *model;
+    struct vaccel_torch_buffer run_options = {0};
+
+    struct vaccel_torch_tensor *out;
+
+    int ret = vaccel_torch_jitload_forward(sess_ptr, model, &run_options, tensor_ptrs.data(), tensor_count, &out, 1);
+    if (ret != 0) {
+        return grpc::Status(grpc::StatusCode::INTERNAL, "Failed to run vaccel_torch_jitload_forward");
+    }
+
+
+    sessions_map.erase(it);
+
+    
+    return grpc::Status::OK;
+}
+
+
+
+grpc::Status ServiceImpl::ImagePose(::grpc::ServerContext *context,
+                                     const ::vaccel::ImagePoseRequest *request,
+                                     ::vaccel::ImagePoseResponse *response) {
+
+    printf("Received ImagePose request\n");
+
+    std::string output_string = "Dummy classification tag";
+
+    response->set_tags(output_string);
 
     return grpc::Status::OK;
-
 }
