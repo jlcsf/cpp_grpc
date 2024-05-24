@@ -94,6 +94,15 @@ public:
                                      const ::vaccel::TorchJitloadForwardRequest *request,
                                      ::vaccel::TorchJitloadForwardResponse *response) override ;
 
+    // Torch JIT Forward Load
+    grpc::Status TorchLoadModel(::grpc::ServerContext *context,
+                                     const ::vaccel::TorchJitLoadModelFromPathRequest *request,
+                                     ::vaccel::TorchJitLoadModelFromPathResponse *response) override ;
+
+    grpc::Status TorchRegisterModel(::grpc::ServerContext *context,
+                                     const ::vaccel::TorchJitRegisterModelRequest *request,
+                                     ::vaccel::VaccelEmpty *response) override ;
+
     grpc::Status ImagePose(::grpc::ServerContext *context,
                                      const ::vaccel::ImagePoseRequest *request,
                                      ::vaccel::ImagePoseResponse *response) override ;

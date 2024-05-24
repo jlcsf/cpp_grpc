@@ -49,6 +49,8 @@ service VaccelAgent {
 	//rpc TorchModelLoad(TorchModelLoadRequest) returns (TorchModelLoadResponse);
 	//rpc TorchModelUnload(TorchModelUnloadRequest) returns (TorchModelUnloadResponse);
 	rpc TorchJitloadForward(TorchJitloadForwardRequest) returns (TorchJitloadForwardResponse);
+	rpc TorchLoadModel(TorchJitLoadModelFromPathRequest) returns (TorchJitLoadModelFromPathResponse);
+	rpc TorchRegisterModel(TorchJitRegisterModelRequest) returns (VaccelEmpty);
 
 	// Generic Operation API
 	rpc Genop(GenopRequest) returns (GenopResponse);

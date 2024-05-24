@@ -6,34 +6,8 @@
 #include <ops/vaccel_ops.h>
 #include <random>
 #include <session.h>
+#include <opencv2/opencv.hpp>
 
-std::vector<float> random_input_generator(int min_value = 1,
-                                          int max_value = 100,
-                                          size_t vector_size = 150528,
-                                          bool is_print = true) {
-    // Create a random number generator engine
-    std::random_device rd;
-    std::mt19937 rng(rd());
-
-    std::uniform_int_distribution<int> distribution(min_value, max_value);
-
-    // Create a vector and fill it with random numbers
-    std::vector<float> res_data(vector_size);
-    for (size_t i = 0; i < vector_size; ++i) {
-        res_data[i] = distribution(rng);
-    }
-
-    if (is_print) {
-        // Print the vector contents
-        std::cout << "The first Random numbers:";
-        for (int value : res_data) {
-            std::cout << " " << value;
-            break;
-        }
-        std::cout << std::endl;
-    }
-    return res_data;
-}
 
 grpc::Status ServiceImpl::Genop(::grpc::ServerContext *context,
                                 const ::vaccel::GenopRequest *request,
@@ -281,6 +255,7 @@ void convertTorchTensor(const vaccel::TorchTensor &src,
     dst.nr_dims = src.dims_size();
 }
 
+
 grpc::Status ServiceImpl::TorchJitloadForward(
     ::grpc::ServerContext *context,
     const ::vaccel::TorchJitloadForwardRequest *request,
@@ -301,10 +276,12 @@ grpc::Status ServiceImpl::TorchJitloadForward(
     std::vector<vaccel_torch_tensor> converted_tensors(tensor_count);
     std::vector<vaccel_torch_tensor *> tensor_ptrs(tensor_count);
 
+
     for (int i = 0; i < tensor_count; ++i) {
         convertTorchTensor(tensor_vector[i], converted_tensors[i]);
         tensor_ptrs[i] = &converted_tensors[i];
     }
+
 
     auto it = sessions_map.find(session_id);
     if (it == sessions_map.end()) {
@@ -317,15 +294,30 @@ grpc::Status ServiceImpl::TorchJitloadForward(
     struct vaccel_torch_buffer run_options = {0};
     int ret;
 
+
+    std::string run_options_str = "resnet";
+    run_options.data = (char*) malloc(sizeof("resnet") + 1);
+    run_options.size = sizeof("resnet") + 1;
+    strcpy(run_options.data, "resnet");
+
+
     const char *model_path = "/home/jl/vaccel-torch-cv-example/";
     
 
-    ret = vaccel_torch_saved_model_set_path(&model, model_path);
-    if (ret != 0) {
-        return grpc::Status(grpc::StatusCode::INTERNAL,
-                            "Failed to set model path");
+    struct vaccel_torch_tensor *in;
+    struct vaccel_torch_tensor *out;
+
+
+
+    vaccel_debug("--------- Imitating previous functions here ---------");
+    ret = vaccel_torch_saved_model_set_path (&model, model_path);
+
+    if (ret) {
+        vaccel_debug("Could not set model path to Torch model");
+        exit(1);
     }
 
+    vaccel_debug("Created new model %lld\n", vaccel_torch_saved_model_id (&model));
 
     ret = vaccel_torch_saved_model_register(&model);
     if (ret != 0) {
@@ -333,39 +325,33 @@ grpc::Status ServiceImpl::TorchJitloadForward(
                             "Failed to register model");
     }
 
+    vaccel_debug("Registered model %lld\n", vaccel_torch_saved_model_id (&model));
 
-    struct vaccel_torch_tensor *in;
-    struct vaccel_torch_tensor *out;
-    int64_t dims[] = {1, 224, 224, 3};
-    std::vector<float> res_data = random_input_generator();
-    res_data.resize(3 * 224 * 224);
-
-
-
-    ret = vaccel_sess_register(sess_ptr, model.resource);
+    ret = vaccel_sess_register (sess_ptr, model.resource);
     if (ret) {
-        fprintf(stderr, "Could not register model with session\n");
+        fprintf (stderr, "Could not register model with session\n");
+        exit (1);
     }
 
+    vaccel_debug("--------- Imitating previous functions here ---------");
 
-    in = vaccel_torch_tensor_new(4, dims, VACCEL_TORCH_FLOAT);
+    vaccel_debug("Registered model ID with session pointer");
+
+    int64_t dummy_dims[] = {1, 224, 224, 3};
+    in = vaccel_torch_tensor_new (4, dummy_dims, VACCEL_TORCH_FLOAT);
     if (!in) {
-        fprintf(stderr, "Could not allocate memory\n");
+        fprintf (stderr, "Could not allocate memory\n");
+        exit (1);
     }
 
-
-    in->data = res_data.data();
-    in->size = res_data.size() * sizeof(float);
-    std::cout << "The IN ADDRESS: " << in->data << std::endl;
-    std::cout << "size: " << in->size << std::endl;
+    vaccel_debug("Created input tensors");
 
 
-    /* Output tensor */
-    out = (struct vaccel_torch_tensor *)malloc(
-        sizeof(struct vaccel_torch_tensor) * 1);
+    // Load and preprocess the image
 
+    out = (struct vaccel_torch_tensor*) malloc(sizeof(struct vaccel_torch_tensor) * 1);
 
-
+    vaccel_debug("Start");
 
     ret = vaccel_torch_jitload_forward(sess_ptr, &model, &run_options, &in, 1,
                                        &out, 1);
@@ -374,6 +360,37 @@ grpc::Status ServiceImpl::TorchJitloadForward(
                             "Failed to run vaccel_torch_jitload_forward");
     }
 
+    ret = vaccel_sess_unregister(sess_ptr, model.resource);
+    if (ret) {
+        fprintf(stderr, "Could not unregister model with session\n");
+    }
+
+    vaccel_debug("Completed");
+
+
+    return grpc::Status::OK;
+}
+
+
+grpc::Status ServiceImpl::TorchLoadModel(::grpc::ServerContext *context,
+                                    const ::vaccel::TorchJitLoadModelFromPathRequest *request,
+                                    ::vaccel::TorchJitLoadModelFromPathResponse *response) {
+
+    const std::string& model_path_bytes = request->model_path();
+
+    printf("Received TorchLoadModel request\n");
+
+
+    return grpc::Status::OK;
+}
+
+grpc::Status ServiceImpl::TorchRegisterModel(::grpc::ServerContext *context,
+                                    const ::vaccel::TorchJitRegisterModelRequest *request,
+                                    ::vaccel::VaccelEmpty *response) {
+
+    int model_id = request->model_id();
+
+    printf("Received TorchRegisterModel request\n");
 
     return grpc::Status::OK;
 }

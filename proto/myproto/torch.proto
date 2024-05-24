@@ -111,3 +111,15 @@ message TorchJitloadForwardResponse {
 		TorchJitloadForwardResult torch_result = 2;
 	}
 };
+
+message TorchJitLoadModelFromPathRequest {
+	bytes model_path = 1;
+};
+
+message TorchJitLoadModelFromPathResponse {
+	uint32 model_id = 1;
+};
+
+message TorchJitRegisterModelRequest {
+	uint32 model_id = 1;
+};
