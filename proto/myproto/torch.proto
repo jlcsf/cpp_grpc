@@ -97,7 +97,7 @@ message TorchJitloadForwardRequest {
 	repeated TorchTensor in_tensors = 4;
 
 	// Output tensors
-	//repeated TorchTensor out_tensors = 5;
+	repeated TorchTensor out_tensors = 5;
 };
 
 message TorchJitloadForwardResult {

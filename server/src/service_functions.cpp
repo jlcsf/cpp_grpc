@@ -246,15 +246,30 @@ grpc::Status ServiceImpl::TensorflowModelRun(
     return grpc::Status::OK;
 }
 
-void convertTorchTensor(const vaccel::TorchTensor &src,
-                        struct vaccel_torch_tensor &dst) {
-    dst.data = const_cast<char *>(src.data().data());
-    dst.size = src.data().size();
-    dst.dims = const_cast<int32_t *>(
-        reinterpret_cast<const int32_t *>(src.dims().data()));
-    dst.nr_dims = src.dims_size();
-}
 
+
+void ConvertToVaccelTorchTensor(
+    const std::vector<vaccel::TorchTensor> &tensor_vector,
+    struct vaccel_torch_tensor **in,
+    size_t nr_inputs) {
+
+    for (size_t i = 0; i < nr_inputs; ++i) {
+        const vaccel::TorchTensor &tensor = tensor_vector[i];
+        
+        in[i]->nr_dims = tensor.dims_size();
+        
+        in[i]->dims = new int32_t[in[i]->nr_dims];
+        for (int j = 0; j < in[i]->nr_dims; ++j) {
+            in[i]->dims[j] = tensor.dims(j);
+        }
+
+        in[i]->data = new char[tensor.data().size()];
+        memcpy(in[i]->data, tensor.data().data(), tensor.data().size());
+        in[i]->size = tensor.data().size();
+
+        in[i]->data_type = static_cast<vaccel_torch_data_type>(tensor.type());
+    }
+}
 
 grpc::Status ServiceImpl::TorchJitloadForward(
     ::grpc::ServerContext *context,
@@ -268,19 +283,27 @@ grpc::Status ServiceImpl::TorchJitloadForward(
 
     int tensor_count = request->in_tensors_size();
 
+    struct vaccel_torch_tensor **in = new struct vaccel_torch_tensor*[tensor_count];
+    for (size_t i = 0; i < tensor_count; ++i) {
+        in[i] = new struct vaccel_torch_tensor;
+    }
     std::vector<vaccel::TorchTensor> tensor_vector;
     for (int i = 0; i < tensor_count; ++i) {
         tensor_vector.push_back(request->in_tensors(i));
     }
-
-    std::vector<vaccel_torch_tensor> converted_tensors(tensor_count);
-    std::vector<vaccel_torch_tensor *> tensor_ptrs(tensor_count);
+    ConvertToVaccelTorchTensor(tensor_vector, in, tensor_count);
 
 
-    for (int i = 0; i < tensor_count; ++i) {
-        convertTorchTensor(tensor_vector[i], converted_tensors[i]);
-        tensor_ptrs[i] = &converted_tensors[i];
+    int out_tensor_count = request->out_tensors_size();
+    struct vaccel_torch_tensor **out = new struct vaccel_torch_tensor*[out_tensor_count];
+    for (size_t i = 0; i < out_tensor_count; ++i) {
+        out[i] = new struct vaccel_torch_tensor;
     }
+    std::vector<vaccel::TorchTensor> out_tensor_vector;
+    for (int i = 0; i < out_tensor_count; ++i) {
+        tensor_vector.push_back(request->out_tensors(i));
+    }
+    ConvertToVaccelTorchTensor(out_tensor_vector, out, out_tensor_count);
 
 
     auto it = sessions_map.find(session_id);
@@ -294,30 +317,22 @@ grpc::Status ServiceImpl::TorchJitloadForward(
     struct vaccel_torch_buffer run_options = {0};
     int ret;
 
-
     std::string run_options_str = "resnet";
-    run_options.data = (char*) malloc(sizeof("resnet") + 1);
-    run_options.size = sizeof("resnet") + 1;
-    strcpy(run_options.data, "resnet");
-
+    run_options.data = (char*) malloc(run_options_str.size() + 1);
+    run_options.size = run_options_str.size() + 1;
+    strcpy(run_options.data, run_options_str.c_str());
 
     const char *model_path = "/home/jl/vaccel-torch-cv-example/";
-    
-
-    struct vaccel_torch_tensor *in;
-    struct vaccel_torch_tensor *out;
-
-
 
     vaccel_debug("--------- Imitating previous functions here ---------");
-    ret = vaccel_torch_saved_model_set_path (&model, model_path);
+    ret = vaccel_torch_saved_model_set_path(&model, model_path);
 
     if (ret) {
         vaccel_debug("Could not set model path to Torch model");
         exit(1);
     }
 
-    vaccel_debug("Created new model %lld\n", vaccel_torch_saved_model_id (&model));
+    vaccel_debug("Created new model %lld\n", vaccel_torch_saved_model_id(&model));
 
     ret = vaccel_torch_saved_model_register(&model);
     if (ret != 0) {
@@ -325,40 +340,39 @@ grpc::Status ServiceImpl::TorchJitloadForward(
                             "Failed to register model");
     }
 
-    vaccel_debug("Registered model %lld\n", vaccel_torch_saved_model_id (&model));
+    vaccel_debug("Registered model %lld\n", vaccel_torch_saved_model_id(&model));
 
-    ret = vaccel_sess_register (sess_ptr, model.resource);
+    ret = vaccel_sess_register(sess_ptr, model.resource);
     if (ret) {
-        fprintf (stderr, "Could not register model with session\n");
-        exit (1);
+        fprintf(stderr, "Could not register model with session\n");
+        exit(1);
     }
 
     vaccel_debug("--------- Imitating previous functions here ---------");
 
     vaccel_debug("Registered model ID with session pointer");
 
-    int64_t dummy_dims[] = {1, 224, 224, 3};
-    in = vaccel_torch_tensor_new (4, dummy_dims, VACCEL_TORCH_FLOAT);
-    if (!in) {
-        fprintf (stderr, "Could not allocate memory\n");
-        exit (1);
-    }
-
     vaccel_debug("Created input tensors");
-
-
-    // Load and preprocess the image
-
-    out = (struct vaccel_torch_tensor*) malloc(sizeof(struct vaccel_torch_tensor) * 1);
 
     vaccel_debug("Start");
 
-    ret = vaccel_torch_jitload_forward(sess_ptr, &model, &run_options, &in, 1,
-                                       &out, 1);
+    ret = vaccel_torch_jitload_forward(sess_ptr, &model, &run_options, in, tensor_count,
+                                       out, 1);
     if (ret != 0) {
         return grpc::Status(grpc::StatusCode::INTERNAL,
                             "Failed to run vaccel_torch_jitload_forward");
     }
+
+    vaccel::TorchJitloadForwardResult* result = response->mutable_torch_result();
+    for (int i = 0; i < out_tensor_count; ++i) {
+        vaccel::TorchTensor* out_tensor = result->add_out_tensors();
+        for (int j = 0; j < out[i]->nr_dims; ++j) {
+            out_tensor->add_dims(out[i]->dims[j]);
+        }
+        out_tensor->set_data(out[i]->data, out[i]->size);
+        out_tensor->set_type(static_cast<vaccel::TorchDataType>(out[i]->data_type));
+    }
+
 
     ret = vaccel_sess_unregister(sess_ptr, model.resource);
     if (ret) {
@@ -367,9 +381,9 @@ grpc::Status ServiceImpl::TorchJitloadForward(
 
     vaccel_debug("Completed");
 
-
     return grpc::Status::OK;
 }
+
 
 
 grpc::Status ServiceImpl::TorchLoadModel(::grpc::ServerContext *context,
