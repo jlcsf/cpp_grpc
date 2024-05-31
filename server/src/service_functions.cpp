@@ -2,12 +2,11 @@
 #include "vaccel.h"
 #include <cstdint>
 #include <log.h>
+#include <opencv2/opencv.hpp>
 #include <ops/torch.h>
 #include <ops/vaccel_ops.h>
 #include <random>
 #include <session.h>
-#include <opencv2/opencv.hpp>
-
 
 grpc::Status ServiceImpl::Genop(::grpc::ServerContext *context,
                                 const ::vaccel::GenopRequest *request,
@@ -246,18 +245,15 @@ grpc::Status ServiceImpl::TensorflowModelRun(
     return grpc::Status::OK;
 }
 
-
-
 void ConvertToVaccelTorchTensor(
     const std::vector<vaccel::TorchTensor> &tensor_vector,
-    struct vaccel_torch_tensor **in,
-    size_t nr_inputs) {
+    struct vaccel_torch_tensor **in, size_t nr_inputs) {
 
     for (size_t i = 0; i < nr_inputs; ++i) {
         const vaccel::TorchTensor &tensor = tensor_vector[i];
-        
+
         in[i]->nr_dims = tensor.dims_size();
-        
+
         in[i]->dims = new int32_t[in[i]->nr_dims];
         for (int j = 0; j < in[i]->nr_dims; ++j) {
             in[i]->dims[j] = tensor.dims(j);
@@ -271,10 +267,31 @@ void ConvertToVaccelTorchTensor(
     }
 }
 
+struct OutputData {
+    float *data; // Pointer to the output data array
+    size_t size; // Size of the data array
+};
+
+std::vector<float> softmax(const float *data, size_t size) {
+    std::vector<float> softmaxed_data(size);
+    float max_val = *std::max_element(data, data + size);
+    float sum = 0.0f;
+    for (size_t i = 0; i < size; ++i) {
+        softmaxed_data[i] = std::exp(data[i] - max_val);
+        sum += softmaxed_data[i];
+    }
+
+    for (size_t i = 0; i < size; ++i)
+        softmaxed_data[i] /= sum;
+
+    return softmaxed_data;
+}
+
 grpc::Status ServiceImpl::TorchJitloadForward(
     ::grpc::ServerContext *context,
     const ::vaccel::TorchJitloadForwardRequest *request,
     ::vaccel::TorchJitloadForwardResponse *response) {
+
     printf("Received TorchJitloadForward request with model ID: %ld\n",
            request->model_id());
     int session_id = request->session_id();
@@ -283,7 +300,8 @@ grpc::Status ServiceImpl::TorchJitloadForward(
 
     int tensor_count = request->in_tensors_size();
 
-    struct vaccel_torch_tensor **in = new struct vaccel_torch_tensor*[tensor_count];
+    struct vaccel_torch_tensor **in =
+        new struct vaccel_torch_tensor *[tensor_count];
     for (size_t i = 0; i < tensor_count; ++i) {
         in[i] = new struct vaccel_torch_tensor;
     }
@@ -293,18 +311,9 @@ grpc::Status ServiceImpl::TorchJitloadForward(
     }
     ConvertToVaccelTorchTensor(tensor_vector, in, tensor_count);
 
-
-    int out_tensor_count = request->out_tensors_size();
-    struct vaccel_torch_tensor **out = new struct vaccel_torch_tensor*[out_tensor_count];
-    for (size_t i = 0; i < out_tensor_count; ++i) {
-        out[i] = new struct vaccel_torch_tensor;
-    }
-    std::vector<vaccel::TorchTensor> out_tensor_vector;
-    for (int i = 0; i < out_tensor_count; ++i) {
-        tensor_vector.push_back(request->out_tensors(i));
-    }
-    ConvertToVaccelTorchTensor(out_tensor_vector, out, out_tensor_count);
-
+    struct vaccel_torch_tensor *out;
+    out = (struct vaccel_torch_tensor *)malloc(
+        sizeof(struct vaccel_torch_tensor) * 1);
 
     auto it = sessions_map.find(session_id);
     if (it == sessions_map.end()) {
@@ -318,7 +327,7 @@ grpc::Status ServiceImpl::TorchJitloadForward(
     int ret;
 
     std::string run_options_str = "resnet";
-    run_options.data = (char*) malloc(run_options_str.size() + 1);
+    run_options.data = (char *)malloc(run_options_str.size() + 1);
     run_options.size = run_options_str.size() + 1;
     strcpy(run_options.data, run_options_str.c_str());
 
@@ -332,7 +341,8 @@ grpc::Status ServiceImpl::TorchJitloadForward(
         exit(1);
     }
 
-    vaccel_debug("Created new model %lld\n", vaccel_torch_saved_model_id(&model));
+    vaccel_debug("Created new model %lld\n",
+                 vaccel_torch_saved_model_id(&model));
 
     ret = vaccel_torch_saved_model_register(&model);
     if (ret != 0) {
@@ -340,7 +350,8 @@ grpc::Status ServiceImpl::TorchJitloadForward(
                             "Failed to register model");
     }
 
-    vaccel_debug("Registered model %lld\n", vaccel_torch_saved_model_id(&model));
+    vaccel_debug("Registered model %lld\n",
+                 vaccel_torch_saved_model_id(&model));
 
     ret = vaccel_sess_register(sess_ptr, model.resource);
     if (ret) {
@@ -349,30 +360,60 @@ grpc::Status ServiceImpl::TorchJitloadForward(
     }
 
     vaccel_debug("--------- Imitating previous functions here ---------");
-
     vaccel_debug("Registered model ID with session pointer");
-
     vaccel_debug("Created input tensors");
-
     vaccel_debug("Start");
 
-    ret = vaccel_torch_jitload_forward(sess_ptr, &model, &run_options, in, tensor_count,
-                                       out, 1);
+    ret = vaccel_torch_jitload_forward(sess_ptr, &model, &run_options, in,
+                                       tensor_count, &out, 1);
     if (ret != 0) {
         return grpc::Status(grpc::StatusCode::INTERNAL,
                             "Failed to run vaccel_torch_jitload_forward");
     }
 
-    vaccel::TorchJitloadForwardResult* result = response->mutable_torch_result();
-    for (int i = 0; i < out_tensor_count; ++i) {
-        vaccel::TorchTensor* out_tensor = result->add_out_tensors();
-        for (int j = 0; j < out[i]->nr_dims; ++j) {
-            out_tensor->add_dims(out[i]->dims[j]);
-        }
-        out_tensor->set_data(out[i]->data, out[i]->size);
-        out_tensor->set_type(static_cast<vaccel::TorchDataType>(out[i]->data_type));
-    }
+    vaccel_debug("Processing output tensors directly from the `out` array");
 
+    // int kTOP_K = 3;
+
+    // printf("Success!\n");
+    // printf("Result Tensor :\n");
+    // printf("Output tensor => type:%u nr_dims:%u\n", out->data_type,
+    //        out->nr_dims);
+
+
+    // OutputData outf;
+    // outf.data = reinterpret_cast<float *>(out->data);
+    // outf.size = 1000;
+
+    // std::vector<size_t> indices(outf.size);
+    // for (size_t i = 0; i < outf.size; ++i)
+    //     indices[i] = i;
+
+    // std::sort(indices.begin(), indices.end(), [&outf](size_t a, size_t b) {
+    //     return outf.data[a] > outf.data[b];
+    // });
+
+    // std::vector<float> softmaxed_data = softmax(outf.data, outf.size);
+
+    // for (int i = 0; i < kTOP_K; ++i) {
+    //     size_t idx = indices[i];
+    //     std::cout << "    ============= Top-" << i + 1
+    //               << " =============" << std::endl;
+    //     std::cout << "    With Probability:  " << softmaxed_data[idx] * 100.0f
+    //               << "%" << std::endl;
+    // }
+
+
+    // Encode the output tensor into the gRPC response
+    vaccel::TorchJitloadForwardResult* result = response->mutable_torch_result();
+    for (int i = 0; i < 1; ++i) { 
+        vaccel::TorchTensor* out_tensor = result->add_out_tensors();
+        for (int j = 0; j < out[i].nr_dims; ++j) {
+            out_tensor->add_dims(out[i].dims[j]);
+        }
+        out_tensor->set_data(out[i].data, out[i].size);
+        out_tensor->set_type(static_cast<vaccel::TorchDataType>(out[i].data_type));
+    }
 
     ret = vaccel_sess_unregister(sess_ptr, model.resource);
     if (ret) {
@@ -384,23 +425,22 @@ grpc::Status ServiceImpl::TorchJitloadForward(
     return grpc::Status::OK;
 }
 
+grpc::Status ServiceImpl::TorchLoadModel(
+    ::grpc::ServerContext *context,
+    const ::vaccel::TorchJitLoadModelFromPathRequest *request,
+    ::vaccel::TorchJitLoadModelFromPathResponse *response) {
 
-
-grpc::Status ServiceImpl::TorchLoadModel(::grpc::ServerContext *context,
-                                    const ::vaccel::TorchJitLoadModelFromPathRequest *request,
-                                    ::vaccel::TorchJitLoadModelFromPathResponse *response) {
-
-    const std::string& model_path_bytes = request->model_path();
+    const std::string &model_path_bytes = request->model_path();
 
     printf("Received TorchLoadModel request\n");
-
 
     return grpc::Status::OK;
 }
 
-grpc::Status ServiceImpl::TorchRegisterModel(::grpc::ServerContext *context,
-                                    const ::vaccel::TorchJitRegisterModelRequest *request,
-                                    ::vaccel::VaccelEmpty *response) {
+grpc::Status ServiceImpl::TorchRegisterModel(
+    ::grpc::ServerContext *context,
+    const ::vaccel::TorchJitRegisterModelRequest *request,
+    ::vaccel::VaccelEmpty *response) {
 
     int model_id = request->model_id();
 
