@@ -1,5 +1,5 @@
 #include "service_registry.h"
-#include "vaccel.h"
+#include <cstddef>
 #include <cstdint>
 #include <log.h>
 #include <opencv2/opencv.hpp>
@@ -7,6 +7,9 @@
 #include <ops/vaccel_ops.h>
 #include <random>
 #include <session.h>
+#include <sys/types.h>
+
+#include "vaccel.h"
 
 grpc::Status ServiceImpl::Genop(::grpc::ServerContext *context,
                                 const ::vaccel::GenopRequest *request,
@@ -79,6 +82,15 @@ grpc::Status ServiceImpl::Genop(::grpc::ServerContext *context,
     ret = vaccel_genop(sess_ptr, read, len_read, write, len_write);
     std::cout << "Return value of vaccel_genop: " << ret << std::endl;
 
+    // Encode the result into the gRPC response
+    vaccel::GenopResult *result = response->mutable_genop_result();
+    for (int i = 0; i < len_write; ++i) {
+        vaccel::GenopArg *write_arg = result->add_write_args();
+        write_arg->set_argtype(1);
+        write_arg->set_size(write[i].size);
+        write_arg->set_buf(write[i].buf, write[i].size);
+    }
+
     return grpc::Status::OK;
 }
 
@@ -100,9 +112,33 @@ ServiceImpl::CreateResource(::grpc::ServerContext *context,
                             const ::vaccel::CreateResourceRequest *request,
                             ::vaccel::CreateResourceResponse *response) {
     printf("Received CreateResource request with type\n");
+    vaccel_resource_t res_type;
 
-    uint32_t dummy_res_id = 12345;
-    response->set_resource_id(dummy_res_id);
+    if (request->has_tf()) {
+        res_type = VACCEL_RES_TF_MODEL;
+    } else if (request->has_caffe()) {
+        res_type = VACCEL_RES_CAFFE_MODEL;
+    } else if (request->has_tf_saved()) {
+        res_type = VACCEL_RES_TF_SAVED_MODEL;
+    } else if (request->has_shared_obj()) {
+        res_type = VACCEL_RES_SHARED_OBJ;
+    } else if (request->has_torch_saved()) {
+        res_type = VACCEL_RES_TORCH_SAVED_MODEL;
+    }
+
+    // void *data = nullptr;
+    // int (*cleanup_resource)(void *) = nullptr;
+
+    // int ret = resource_new(res, res_type, data, cleanup_resource);
+    // if (ret != 0) {
+    //     return grpc::Status(grpc::StatusCode::INTERNAL,
+    //                         "Failed to initialize resource");
+    // }
+
+    // uint32_t resource_id = res->id;
+    // response->set_resource_id(resource_id);
+
+    // resources_map[resource_id] = res;
 
     return grpc::Status::OK;
 }
@@ -116,6 +152,32 @@ ServiceImpl::RegisterResource(::grpc::ServerContext *context,
            request->resource_id(),
            static_cast<unsigned int>(request->session_id()));
 
+    uint32_t session_id = request->session_id();
+    uint32_t resource_id = request->resource_id();
+
+    auto it = sessions_map.find(session_id);
+    if (it == sessions_map.end()) {
+        return grpc::Status(grpc::StatusCode::NOT_FOUND,
+                            "Session ID not found");
+    }
+
+    vaccel_session *sess_ptr = &(it->second);
+
+    auto itr = resources_map.find(resource_id);
+    if (itr == resources_map.end()) {
+        return grpc::Status(grpc::StatusCode::NOT_FOUND,
+                            "resource ID not found");
+    }
+
+    vaccel_resource *res_ptr = (itr->second);
+
+    int ret = vaccel_sess_register(sess_ptr, res_ptr);
+
+    if (ret != 0) {
+        return grpc::Status(grpc::StatusCode::INTERNAL,
+                            "Failed to register resource");
+    }
+
     return grpc::Status::OK;
 }
 
@@ -128,6 +190,32 @@ grpc::Status ServiceImpl::UnregisterResource(
            static_cast<unsigned int>(request->resource_id()),
            static_cast<unsigned int>(request->session_id()));
 
+    uint32_t session_id = request->session_id();
+    uint32_t resource_id = request->resource_id();
+
+    auto it = sessions_map.find(session_id);
+    if (it == sessions_map.end()) {
+        return grpc::Status(grpc::StatusCode::NOT_FOUND,
+                            "Session ID not found");
+    }
+
+    vaccel_session *sess_ptr = &(it->second);
+
+    auto itr = resources_map.find(resource_id);
+    if (itr == resources_map.end()) {
+        return grpc::Status(grpc::StatusCode::NOT_FOUND,
+                            "resource ID not found");
+    }
+
+    vaccel_resource *res_ptr = (itr->second);
+
+    int ret = vaccel_sess_unregister(sess_ptr, res_ptr);
+
+    if (ret != 0) {
+        return grpc::Status(grpc::StatusCode::INTERNAL,
+                            "Failed to unregister resource");
+    }
+
     return grpc::Status::OK;
 }
 
@@ -137,6 +225,23 @@ ServiceImpl::DestroyResource(::grpc::ServerContext *context,
                              ::vaccel::VaccelEmpty *response) {
     printf("Received DestroyResource request with resource ID: %ld\n",
            request->resource_id());
+
+    uint32_t resource_id = request->resource_id();
+
+    auto itr = resources_map.find(resource_id);
+    if (itr == resources_map.end()) {
+        return grpc::Status(grpc::StatusCode::NOT_FOUND,
+                            "resource ID not found");
+    }
+
+    vaccel_resource *res_ptr = (itr->second);
+
+    // int ret = resource_destroy(res_ptr);
+
+    // if (ret != 0) {
+    //     return grpc::Status(grpc::StatusCode::INTERNAL,
+    //                         "Failed to destroy resource");
+    // }
 
     return grpc::Status::OK;
 }
@@ -373,46 +478,17 @@ grpc::Status ServiceImpl::TorchJitloadForward(
 
     vaccel_debug("Processing output tensors directly from the `out` array");
 
-    // int kTOP_K = 3;
-
-    // printf("Success!\n");
-    // printf("Result Tensor :\n");
-    // printf("Output tensor => type:%u nr_dims:%u\n", out->data_type,
-    //        out->nr_dims);
-
-
-    // OutputData outf;
-    // outf.data = reinterpret_cast<float *>(out->data);
-    // outf.size = 1000;
-
-    // std::vector<size_t> indices(outf.size);
-    // for (size_t i = 0; i < outf.size; ++i)
-    //     indices[i] = i;
-
-    // std::sort(indices.begin(), indices.end(), [&outf](size_t a, size_t b) {
-    //     return outf.data[a] > outf.data[b];
-    // });
-
-    // std::vector<float> softmaxed_data = softmax(outf.data, outf.size);
-
-    // for (int i = 0; i < kTOP_K; ++i) {
-    //     size_t idx = indices[i];
-    //     std::cout << "    ============= Top-" << i + 1
-    //               << " =============" << std::endl;
-    //     std::cout << "    With Probability:  " << softmaxed_data[idx] * 100.0f
-    //               << "%" << std::endl;
-    // }
-
-
     // Encode the output tensor into the gRPC response
-    vaccel::TorchJitloadForwardResult* result = response->mutable_torch_result();
-    for (int i = 0; i < 1; ++i) { 
-        vaccel::TorchTensor* out_tensor = result->add_out_tensors();
+    vaccel::TorchJitloadForwardResult *result =
+        response->mutable_torch_result();
+    for (int i = 0; i < 1; ++i) {
+        vaccel::TorchTensor *out_tensor = result->add_out_tensors();
         for (int j = 0; j < out[i].nr_dims; ++j) {
             out_tensor->add_dims(out[i].dims[j]);
         }
         out_tensor->set_data(out[i].data, out[i].size);
-        out_tensor->set_type(static_cast<vaccel::TorchDataType>(out[i].data_type));
+        out_tensor->set_type(
+            static_cast<vaccel::TorchDataType>(out[i].data_type));
     }
 
     ret = vaccel_sess_unregister(sess_ptr, model.resource);

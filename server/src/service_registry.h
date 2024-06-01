@@ -1,6 +1,7 @@
 #ifndef SERVICE_REGISTRY_H
 #define SERVICE_REGISTRY_H
 
+#include <cstdint>
 #include <grpc/grpc.h>
 #include <grpcpp/server_builder.h>
 #include <grpcpp/server_context.h>
@@ -15,7 +16,7 @@
 #include <myproto/tensorflow.pb.h>
 #include <myproto/torch.pb.h>
 
-#include <session.h>
+
 #include <stdexcept>
 #include <sys/types.h>
 #include <unordered_map>
@@ -25,6 +26,7 @@ class ServiceImpl final : public vaccel::VaccelAgent::Service {
 public:
 
     using SessionMap = std::unordered_map<uint32_t, vaccel_session>;
+    using ResourceMap = std::unordered_map<uint32_t, vaccel_resource*>;
 
     ServiceImpl() {}
 
@@ -110,6 +112,7 @@ public:
 private:
 
     SessionMap sessions_map;
+    ResourceMap resources_map;
 
 };
 
