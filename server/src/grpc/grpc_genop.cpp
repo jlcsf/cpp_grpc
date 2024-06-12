@@ -86,6 +86,7 @@ grpc::Status ServiceImpl::Genop(::grpc::ServerContext *context,
         write_arg->set_argtype(1);
         write_arg->set_size(write[i].size);
         write_arg->set_buf(write[i].buf, write[i].size);
+        std::cout << "Output content: " << write_arg->buf() << std::endl;
     }
 
     return grpc::Status::OK;

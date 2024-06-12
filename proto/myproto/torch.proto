@@ -122,4 +122,5 @@ message TorchJitLoadModelFromPathResponse {
 
 message TorchJitRegisterModelRequest {
 	uint32 model_id = 1;
+	uint32 session_id = 2;
 };

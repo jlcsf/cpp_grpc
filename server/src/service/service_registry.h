@@ -27,6 +27,7 @@ public:
 
     using SessionMap = std::unordered_map<uint32_t, vaccel_session>;
     using ResourceMap = std::unordered_map<uint32_t, vaccel_resource*>;
+    using TorchModelMap = std::unordered_map<std::string, vaccel_torch_saved_model*>;
 
     ServiceImpl() {}
 
@@ -113,6 +114,7 @@ private:
 
     SessionMap sessions_map;
     ResourceMap resources_map;
+    TorchModelMap model_map;
 
 };
 

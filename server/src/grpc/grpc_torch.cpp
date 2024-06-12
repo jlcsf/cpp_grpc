@@ -4,8 +4,8 @@
 #include <log.h>
 #include <opencv2/opencv.hpp>
 #include <random>
+#include <resources/torch_saved_model.h>
 #include <sys/types.h>
-
 #include "vaccel.h"
 
 const char *MODEL_PATH = "/home/jl/vaccel-torch-cv-example/";
@@ -37,13 +37,12 @@ struct OutputData {
     size_t size; // Size of the data array
 };
 
-
 grpc::Status ServiceImpl::TorchJitloadForward(
     ::grpc::ServerContext *context,
     const ::vaccel::TorchJitloadForwardRequest *request,
     ::vaccel::TorchJitloadForwardResponse *response) {
 
-    printf("Received TorchJitloadForward request with model ID: %ld\n",
+    vaccel_debug("Received TorchJitloadForward request with model ID: %ld\n",
            request->model_id());
     int session_id = request->session_id();
     int model_id = request->model_id();
@@ -73,44 +72,25 @@ grpc::Status ServiceImpl::TorchJitloadForward(
     }
 
     struct vaccel_session *sess_ptr = &(it->second);
-    struct vaccel_torch_saved_model model;
     struct vaccel_torch_buffer run_options = {0};
     int ret;
 
-    std::string run_options_str = "resnet";
+    std::string run_options_str = request->run_options();
     run_options.data = (char *)malloc(run_options_str.size() + 1);
     run_options.size = run_options_str.size() + 1;
     strcpy(run_options.data, run_options_str.c_str());
 
     const char *model_path = MODEL_PATH;
 
-    vaccel_debug("--------- Imitating previous functions here ---------");
-    ret = vaccel_torch_saved_model_set_path(&model, model_path);
-
-    if (ret) {
-        vaccel_debug("Could not set model path to Torch model");
-        exit(1);
+    auto model_it = model_map.find(model_path);
+    if (model_it == model_map.end()) {
+        return grpc::Status(grpc::StatusCode::NOT_FOUND,
+                            "Model pointer not found");
     }
 
-    vaccel_debug("Created new model %lld\n",
-                 vaccel_torch_saved_model_id(&model));
+    // Deep copy the model to avoid issues with lifetime
+    struct vaccel_torch_saved_model model = *(model_it->second);
 
-    ret = vaccel_torch_saved_model_register(&model);
-    if (ret != 0) {
-        return grpc::Status(grpc::StatusCode::INTERNAL,
-                            "Failed to register model");
-    }
-
-    vaccel_debug("Registered model %lld\n",
-                 vaccel_torch_saved_model_id(&model));
-
-    ret = vaccel_sess_register(sess_ptr, model.resource);
-    if (ret) {
-        fprintf(stderr, "Could not register model with session\n");
-        exit(1);
-    }
-
-    vaccel_debug("--------- Imitating previous functions here ---------");
     vaccel_debug("Registered model ID with session pointer");
     vaccel_debug("Created input tensors");
     vaccel_debug("Start");
@@ -137,11 +117,6 @@ grpc::Status ServiceImpl::TorchJitloadForward(
             static_cast<vaccel::TorchDataType>(out[i].data_type));
     }
 
-    ret = vaccel_sess_unregister(sess_ptr, model.resource);
-    if (ret) {
-        fprintf(stderr, "Could not unregister model with session\n");
-    }
-
     vaccel_debug("Completed");
 
     return grpc::Status::OK;
@@ -153,8 +128,24 @@ grpc::Status ServiceImpl::TorchLoadModel(
     ::vaccel::TorchJitLoadModelFromPathResponse *response) {
 
     const std::string &model_path_bytes = request->model_path();
+    int ret;
 
-    printf("Received TorchLoadModel request\n");
+    const char *model_path = MODEL_PATH;
+    struct vaccel_torch_saved_model model;
+    
+    vaccel_debug("Received TorchLoadModel request\n");
+
+    ret = vaccel_torch_saved_model_set_path(&model, model_path);
+
+    if (ret) {
+        vaccel_debug("Could not set model path to Torch model");
+        exit(1);
+    }
+
+    model_map[model_path] = new vaccel_torch_saved_model(model);
+
+    vaccel_debug("Registered model %lld\n",
+                 vaccel_torch_saved_model_id(&model));
 
     return grpc::Status::OK;
 }
@@ -165,8 +156,44 @@ grpc::Status ServiceImpl::TorchRegisterModel(
     ::vaccel::VaccelEmpty *response) {
 
     int model_id = request->model_id();
+    int ret;
+    int session_id = request->session_id();
+    const char *model_path = MODEL_PATH;
 
-    printf("Received TorchRegisterModel request\n");
+    auto model_it = model_map.find(model_path);
+    if (model_it == model_map.end()) {
+        return grpc::Status(grpc::StatusCode::NOT_FOUND,
+                            "Model pointer not found");
+    }
+
+    auto it = sessions_map.find(session_id);
+    if (it == sessions_map.end()) {
+        return grpc::Status(grpc::StatusCode::NOT_FOUND,
+                            "Session ID not found");
+    }
+
+    struct vaccel_session *sess_ptr = &(it->second);
+    struct vaccel_torch_saved_model model = *(model_it->second);
+
+    vaccel_debug("Received TorchRegisterModel request\n");
+
+    ret = vaccel_torch_saved_model_register(&model);
+    if (ret != 0) {
+        return grpc::Status(grpc::StatusCode::INTERNAL,
+                            "Failed to register model");
+    }
+
+    vaccel_debug("Registered model %lld\n",
+                 vaccel_torch_saved_model_id(&model));
+
+
+    ret = vaccel_sess_register(sess_ptr, model.resource);
+    if (ret) {
+        fprintf(stderr, "Could not register model with session\n");
+        exit(1);
+
+    }
+    vaccel_debug("Registered model with session");
 
     return grpc::Status::OK;
 }
