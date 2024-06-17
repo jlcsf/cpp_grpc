@@ -4,7 +4,7 @@
 #include <log.h>
 #include <opencv2/opencv.hpp>
 #include <random>
-#include <resources/torch_saved_model.h>
+#include <resources/single_model.h>
 #include <sys/types.h>
 #include "vaccel.h"
 
@@ -89,7 +89,7 @@ grpc::Status ServiceImpl::TorchJitloadForward(
     }
 
     // Deep copy the model to avoid issues with lifetime
-    struct vaccel_torch_saved_model model = *(model_it->second);
+    struct vaccel_single_model model = *(model_it->second);
 
     vaccel_debug("Registered model ID with session pointer");
     vaccel_debug("Created input tensors");
@@ -131,21 +131,21 @@ grpc::Status ServiceImpl::TorchLoadModel(
     int ret;
 
     const char *model_path = MODEL_PATH;
-    struct vaccel_torch_saved_model model;
+    struct vaccel_single_model model;
     
     vaccel_debug("Received TorchLoadModel request\n");
 
-    ret = vaccel_torch_saved_model_set_path(&model, model_path);
+    ret = vaccel_single_model_set_path(&model, model_path);
 
     if (ret) {
         vaccel_debug("Could not set model path to Torch model");
         exit(1);
     }
 
-    model_map[model_path] = new vaccel_torch_saved_model(model);
+    model_map[model_path] = new vaccel_single_model;
 
     vaccel_debug("Registered model %lld\n",
-                 vaccel_torch_saved_model_id(&model));
+                 vaccel_single_model_get_id(&model));
 
     return grpc::Status::OK;
 }
@@ -173,18 +173,18 @@ grpc::Status ServiceImpl::TorchRegisterModel(
     }
 
     struct vaccel_session *sess_ptr = &(it->second);
-    struct vaccel_torch_saved_model model = *(model_it->second);
+    struct vaccel_single_model model = *(model_it->second);
 
     vaccel_debug("Received TorchRegisterModel request\n");
 
-    ret = vaccel_torch_saved_model_register(&model);
+    ret = vaccel_single_model_register(&model);
     if (ret != 0) {
         return grpc::Status(grpc::StatusCode::INTERNAL,
                             "Failed to register model");
     }
 
     vaccel_debug("Registered model %lld\n",
-                 vaccel_torch_saved_model_id(&model));
+                 vaccel_single_model_get_id(&model));
 
 
     ret = vaccel_sess_register(sess_ptr, model.resource);

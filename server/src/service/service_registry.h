@@ -17,17 +17,21 @@
 #include <myproto/torch.pb.h>
 
 
+#include <session.h>
 #include <stdexcept>
 #include <sys/types.h>
 #include <unordered_map>
+
 #include "vaccel.h"
+
+
 
 class ServiceImpl final : public vaccel::VaccelAgent::Service {
 public:
 
     using SessionMap = std::unordered_map<uint32_t, vaccel_session>;
     using ResourceMap = std::unordered_map<uint32_t, vaccel_resource*>;
-    using TorchModelMap = std::unordered_map<std::string, vaccel_torch_saved_model*>;
+    using TorchModelMap = std::unordered_map<std::string,  vaccel_single_model*>;
 
     ServiceImpl() {}
 
